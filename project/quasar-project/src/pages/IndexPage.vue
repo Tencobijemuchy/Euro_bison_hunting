@@ -1,13 +1,20 @@
 <template>
-  <q-page class="q-pa-xl">
-    <div class="text-h5 q-mb-md">VPWA TEST</div>
-    <div class="q-gutter-sm">
-      <q-btn color="primary" label="Go to Login" @click="$router.push('/login')" />
-      <q-btn color="secondary" label="Go to Register" @click="$router.push('/register')" />
+  <q-page class="q-pa-xl column items-start">
+    <div class="text-h6 q-mb-md">Home</div>
+
+
+
+    <div v-if="user.isLogged">
+      Logged as: <b>{{ user.fullName }}</b>
+      <span> (nick: {{ user.me?.nickname }}, email: {{ user.me?.email }})</span>
+    </div>
+    <div v-else>
+      You are not logged in yet.
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-
+import { useUserStore } from 'src/stores/user'
+const user = useUserStore()
 </script>
