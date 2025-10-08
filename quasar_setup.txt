@@ -1,0 +1,157 @@
+Microsoft Windows [Version 10.0.26100.6584]
+(c) Microsoft Corporation. Všetky práva vyhradené.
+
+C:\Users\paste\Desktop\FIIT\7.semester\VPWA\projekt\Red_deer_hunting\project>npm create quasar@latest
+Need to install the following packages:
+create-quasar@2.0.9
+Ok to proceed? (y) y
+
+
+> npx
+> create-quasar
+
+
+
+ .d88888b.
+d88P" "Y88b
+888     888
+888     888 888  888  8888b.  .d8888b   8888b.  888d888
+888     888 888  888     "88b 88K          "88b 888P"
+888 Y8b 888 888  888 .d888888 "Y8888b. .d888888 888
+Y88b.Y8b88P Y88b 888 888  888      X88 888  888 888
+ "Y888888"   "Y88888 "Y888888  88888P' "Y888888 888
+       Y8b
+
+√ What would you like to build? » App with Quasar CLI, let's go!
+√ Project folder: ... quasar-project
+√ Pick script type: » Typescript
+√ Pick Quasar App CLI variant: » Quasar App CLI with Vite
+√ Package name: ... quasar-project
+√ Project product name: (must start with letter if building mobile apps) ... Quasar App
+√ Project description: ... VPWA project Babis/Pasteka
+√ Pick a Vue component style: » Composition API with <script setup>
+√ Pick your CSS preprocessor: » Sass with SCSS syntax
+√ Check the features needed for your project: » Linting (vite-plugin-checker + ESLint + vue-tsc)
+√ Add Prettier for code formatting? ... yes
+
+ Quasar • Generating files...
+
+ - index.html
+ - postcss.config.js
+ - public/favicon.ico
+ - public/icons/favicon-128x128.png
+ - public/icons/favicon-16x16.png
+ - public/icons/favicon-32x32.png
+ - public/icons/favicon-96x96.png
+ - quasar.config.ts
+ - README.md
+ - src/App.vue
+ - src/assets/quasar-logo-vertical.svg
+ - src/boot/.gitkeep
+ - src/components/EssentialLink.vue
+ - src/components/ExampleComponent.vue
+ - src/components/models.ts
+ - src/env.d.ts
+ - src/layouts/MainLayout.vue
+ - src/pages/ErrorNotFound.vue
+ - src/pages/IndexPage.vue
+ - src/router/index.ts
+ - src/router/routes.ts
+ - .editorconfig
+ - .gitignore
+ - .npmrc
+ - .vscode/extensions.json
+ - .vscode/settings.json
+ - package.json
+ - tsconfig.json
+ - src/css/app.scss
+ - src/css/quasar.variables.scss
+ - eslint.config.js
+ - .prettierrc.json
+
+ Quasar •  SUCCESS  • The project has been scaffolded
+
+√ Install project dependencies? (recommended) » Yes, use npm
+
+
+> quasar-project@0.0.1 postinstall
+> quasar prepare
+
+
+ .d88888b.
+d88P" "Y88b
+888     888
+888     888 888  888  8888b.  .d8888b   8888b.  888d888
+888     888 888  888     "88b 88K          "88b 888P"
+888 Y8b 888 888  888 .d888888 "Y8888b. .d888888 888
+Y88b.Y8b88P Y88b 888 888  888      X88 888  888 888
+ "Y888888"   "Y88888 "Y888888  88888P' "Y888888 888
+       Y8b
+
+ App • Using quasar.config.ts in "ts" format
+ App • Generated tsconfig.json and types files in .quasar directory
+ App • The app is now prepared for linting, type-checking, IDE integration, etc.
+
+added 513 packages, and audited 514 packages in 35s
+
+132 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+
+
+
+> quasar-project@0.0.1 format
+> prettier --write "**/*.{js,ts,vue,scss,html,md,json}" --ignore-path .gitignore
+
+.prettierrc.json 36ms
+.vscode/extensions.json 3ms
+.vscode/settings.json 2ms
+eslint.config.js 17ms
+index.html 30ms
+package-lock.json 85ms (unchanged)
+package.json 1ms
+postcss.config.js 2ms
+quasar.config.ts 53ms
+README.md 24ms
+src/App.vue 5ms (unchanged)
+src/components/EssentialLink.vue 14ms
+src/components/ExampleComponent.vue 17ms
+src/components/models.ts 2ms (unchanged)
+src/css/app.scss 16ms (unchanged)
+src/css/quasar.variables.scss 5ms
+src/env.d.ts 3ms (unchanged)
+src/layouts/MainLayout.vue 13ms
+src/pages/ErrorNotFound.vue 7ms
+src/pages/IndexPage.vue 7ms
+src/router/index.ts 4ms
+src/router/routes.ts 2ms (unchanged)
+tsconfig.json 1ms
+
+
+ Quasar • A parent of the project folder is already a Git repository, so skipping Git initialization.
+
+ To get started:
+
+   cd quasar-project
+   quasar dev # or: yarn quasar dev # or: npx quasar dev
+
+ Documentation can be found at: https://quasar.dev
+
+ Quasar is relying on donations to evolve. We'd be very grateful if you can
+ read our manifest on "Why donations are important": https://quasar.dev/why-donate
+ Donation campaign: https://donate.quasar.dev
+ Any amount is very welcome.
+ If invoices are required, please first contact Razvan Stoenescu.
+
+ Please give us a star on Github if you appreciate our work:
+   https://github.com/quasarframework/quasar
+
+ Enjoy! - Quasar Team
+
+npm notice
+npm notice New major version of npm available! 10.9.3 -> 11.6.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.6.1
+npm notice To update run: npm install -g npm@11.6.1
+npm notice
+:
