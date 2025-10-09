@@ -8,10 +8,46 @@
 
       <q-separator spaced class="q-my-md" />
 
-      <div class="text-subtitle1 q-mt-md">Available Channels</div>
 
-      <q-list bordered class="rounded-borders q-mt-sm" v-if="channels.channels.length">
-        <q-item v-for="ch in channels.channels" :key="ch.id" clickable>
+      <!------------------------------ JOINED CHANNELS --------------------------------------->
+      <div class="text-subtitle1 q-mt-md">Joined Channels</div>
+      <q-list bordered class="rounded-borders q-mt-sm" v-if="channels.joinedChannels.length">
+        <q-item v-for="ch in channels.joinedChannels" :key="ch.id" clickable>
+          <q-item-section>
+            <q-item-label>{{ ch.name }}</q-item-label>
+            <q-item-label caption>
+              {{ ch.isPrivate ? 'Private' : 'Public' }} • {{ ch.members }} members
+            </q-item-label>
+          </q-item-section>
+
+          <q-item-section side>
+            <q-btn
+              dense
+              color="primary"
+              label="Enter"
+
+              class="q-mr-sm"
+            />
+            <q-btn
+              dense
+              flat
+              color="negative"
+              label="Leave"
+              @click="channels.leaveChannel(ch.id)"
+            />
+          </q-item-section>
+        </q-item>
+      </q-list>
+      <div v-else class="text-caption q-mt-xs">You have not joined any channels yet.</div>
+
+
+
+      <q-separator spaced class="q-my-md" />
+
+      <!------------------------------ AVAILABLE CHANNELS --------------------------------------->
+      <div class="text-subtitle1 q-mt-md">Available Channels</div>
+      <q-list bordered class="rounded-borders q-mt-sm" v-if="channels.availableChannels.length">
+        <q-item v-for="ch in channels.availableChannels" :key="ch.id" clickable>
           <q-item-section>
             <q-item-label>{{ ch.name }}</q-item-label>
             <q-item-label caption>
@@ -32,6 +68,7 @@
 
       <q-btn class="q-mt-md" color="secondary" icon="add" label="Create Channel" />
     </div>
+
 
     <div v-else>
       You are not logged in yet.
