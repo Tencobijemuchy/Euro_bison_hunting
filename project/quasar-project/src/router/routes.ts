@@ -8,6 +8,8 @@ const routes: RouteRecordRaw[] = [
       { path: '', component: () => import('src/pages/IndexPage.vue') },
       { path: 'login', component: () => import('src/pages/LoginPage.vue') },
       { path: 'register', component: () => import('src/pages/RegisterPage.vue') },
+      { path: 'channels', component: () => import('pages/ChannelsPage.vue') },
+      { path: 'c/:channelName', component: () => import('pages/ChannelPage.vue'), props: true }
     ],
   },
   { path: '/:catchAll(.*)*', component: () => import('src/pages/ErrorNotFound.vue') },
