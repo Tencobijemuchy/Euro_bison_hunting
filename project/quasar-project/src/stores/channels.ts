@@ -249,5 +249,13 @@ export const useChannelsStore = defineStore('channels', {
       if (this.drafts[channelName]) delete this.drafts[channelName][nickname]
       if (this.typing[channelName]) delete this.typing[channelName][nickname]
     },
+
+    simulateTopInvite(channelName: string, targetNick: string) {
+      const ch = this.byName(channelName)
+      if (!ch) throw new Error('Channel not found.')
+      ch.topInvitedFor[targetNick] = nowISO()
+      this.persist()
+    }
+
   },
 })

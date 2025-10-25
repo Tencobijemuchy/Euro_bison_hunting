@@ -17,14 +17,22 @@
     </q-form>
 
     <q-list bordered separator>
-      <q-item v-for="ch in channels" :key="ch.name" clickable @click="go(ch.name)">
+      <q-item v-for="ch in channels" :key="ch.name" clickable @click="go(ch.name)" :class="{ 'invited-outline': isInvited(ch) }">
         <q-item-section>
-          <q-item-label>#{{ ch.name }}</q-item-label>
+          <q-item-label>#{{ ch.name }} <q-badge v-if="isInvited(ch)" class="q-ml-sm" color="warning" text-color="black" label="invited" /></q-item-label>
           <q-item-label caption>
             members: {{ ch.members.length }} • {{ ch.isPrivate ? 'private' : 'public' }}
           </q-item-label>
         </q-item-section>
-        <q-item-section side><q-icon name="chevron_right" /></q-item-section>
+        <q-item-section side class="row items-center q-gutter-sm">
+          <!-- DEV: simulácia “pozvánky” bez backendu -->
+          <q-btn
+            v-if="isDev"
+            dense flat icon="mail" label="Simulovať invite"
+            @click.stop="channelsStore.simulateTopInvite(ch.name, me)"
+          />
+          <q-icon name="chevron_right" />
+        </q-item-section>
       </q-item>
     </q-list>
   </q-page>
@@ -36,13 +44,19 @@ import { useRouter } from 'vue-router'
 import { useChannelsStore } from 'src/stores/channels'
 import { useCommands } from 'src/composables/useCommands'
 import { onCommandSubmit } from 'src/utils/cmdBus'
+import { useUserStore } from 'src/stores/user'
+import type { Channel } from 'src/stores/channels'
+
 
 const router = useRouter()
 const channelsStore = useChannelsStore()
+const user = useUserStore()
+const me = computed(() => user.me?.nickname || '')
 
-const channels = computed(() => channelsStore.channels)
+const channels = computed(() => channelsStore.sortedForUser(me.value))
 const newName = ref('')
 const isPrivate = ref(false)
+const isDev = import.meta.env.DEV
 
 // inicializacia useCommands pre list page: podporuj len /join a po uspechu presmeruj
 const { run: runCmd } = useCommands({
@@ -71,9 +85,14 @@ function createOrJoin() {
   isPrivate.value = false
 }
 
+function isInvited(ch: Channel) {
+  return Boolean(ch.topInvitedFor?.[me.value])
+}
+
 // handler: preklik na detail konkretneho kanala zo zoznamu
 async function go(name: string) {
   await router.push(`/c/${encodeURIComponent(name)}`)
 }
 </script>
+
 

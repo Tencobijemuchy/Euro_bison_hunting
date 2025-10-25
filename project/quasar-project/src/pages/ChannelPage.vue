@@ -2,6 +2,13 @@
   <!-- channel page s tlacidlom pre show members -->
   <q-page class="column fit">
     <div class="row items-center q-pa-sm q-gutter-sm bg-grey-2 channel-header">
+      <q-btn
+        flat
+        dense
+        icon="arrow_back"
+        @click="goBack"
+        aria-label="Späť na kanály"
+      />
       <div class="channel-title">#{{ channelName }}</div>
       <q-badge v-if="channel?.isPrivate" color="secondary" label="private" />
       <q-badge v-if="isOwner" color="primary" :label="`owner: ${channel?.ownerNickname}`" />
@@ -108,6 +115,9 @@ const channels = useChannelsStore()
 //const input = ref('')
 const messages = ref<Msg[]>([])
 
+function goBack() {
+  void router.push('/channels')
+}
 
 
 const me = computed(() => user.me?.nickname || '')
