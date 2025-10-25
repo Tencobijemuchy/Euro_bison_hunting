@@ -1,4 +1,3 @@
-
 <template>
   <q-page class="q-pa-md">
     <div class="text-h6 q-mb-md">Channels</div>
@@ -32,13 +31,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChannelsStore } from 'src/stores/channels'
-import { useUserStore } from 'src/stores/user'
-
-const user = useUserStore()
-const me = computed(() => user.me?.nickname || '')
+import { useCommands } from 'src/composables/useCommands'
+import { onCommandSubmit } from 'src/utils/cmdBus'
 
 const router = useRouter()
 const channelsStore = useChannelsStore()
@@ -47,21 +44,36 @@ const channels = computed(() => channelsStore.channels)
 const newName = ref('')
 const isPrivate = ref(false)
 
+// inicializacia useCommands pre list page: podporuj len /join a po uspechu presmeruj
+const { run: runCmd } = useCommands({
+  onJoinSuccess: (channelName) => {
+    void router.push({ name: 'channel', params: { channelName } })
+  }
+})
+
+// registracia globalneho command busu (footer input -> useCommands)
+let offBus: null | (() => void) = null
+onMounted(() => {
+  offBus = onCommandSubmit((text) => runCmd(text))
+})
+
+// odregistrovanie busu pri opusteni stranky
+onBeforeUnmount(() => {
+  if (offBus) offBus()
+})
+
+// handler: klik na tlacidlo /join pouzije rovnaku cestu cez useCommands
 function createOrJoin() {
-  if (!newName.value) return
-  if (!me.value) return
-
-  channelsStore.joinChannel(me.value, newName.value, isPrivate.value)
-  void router.push({ name: 'channel', params: { channelName: newName.value } })
-
+  const name = newName.value.trim()
+  if (!name) return
+  runCmd(`/join ${name}${isPrivate.value ? ' private' : ''}`)
   newName.value = ''
   isPrivate.value = false
 }
 
-
+// handler: preklik na detail konkretneho kanala zo zoznamu
 async function go(name: string) {
   await router.push(`/c/${encodeURIComponent(name)}`)
 }
-
 </script>
 
