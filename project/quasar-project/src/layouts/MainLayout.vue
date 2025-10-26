@@ -38,17 +38,15 @@
           </q-menu>
         </q-btn>
 
-
         <!-- logo -->
-        <q-toolbar-title class="row items-center no-wrap">
+        <q-toolbar-title class="row items-center no-wrap gt-sm">
           <q-avatar square size="80px" class="bg-transparent">
             <img src="src/assets/e_bison.png" alt="e-Bison logo" />
           </q-avatar>
           <span class="q-ml-sm text-weight-medium"></span>
         </q-toolbar-title>
 
-
-        <!-- menu pre usera  -->
+        <!-- menu pre usera (NECHÁVAM BEZ ZMIEN) -->
         <div v-if="user.isLogged" class="row items-center q-gutter-sm">
           <q-badge color="primary">
             {{ user.fullName }} ({{ user.me?.nickname }})
@@ -74,7 +72,6 @@
               </q-list>
             </q-menu>
           </q-btn>
-
 
           <!--menu pre pre vypis commandov-->
           <q-btn dense flat icon="info">
@@ -115,9 +112,7 @@
       </q-toolbar>
     </q-header>
 
-
-
-    <q-page-container class="page-fit" >
+    <q-page-container class="page-fit">
       <router-view />
     </q-page-container>
 
@@ -131,12 +126,9 @@
         </q-form>
       </div>
     </q-footer>
-
-
-
-
   </q-layout>
 </template>
+
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
@@ -165,18 +157,17 @@ function onGlobalSubmit(text: string) {
 }
 </script>
 
-
 <style lang="scss">
 :root {
   --header-h: 78px;
   --footer-h: 68px;
+  --footer-lift: 12px;
 }
 
 html, body, #q-app {
   height: 100%;
   overflow: hidden;
 }
-
 
 .glass {
   background: rgba(10, 18, 38, 0.55);
@@ -185,13 +176,18 @@ html, body, #q-app {
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-
 .top-nav-menu {
   width: clamp(280px, 60vw, 440px);
   max-height: 70vh;
   overflow: auto;
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+
+@media (max-width: 599px) {
+
+
+  .top-nav-menu { width: 94vw; max-height: 75vh; }
 }
 </style>
 
@@ -202,8 +198,8 @@ html, body, #q-app {
 .q-toolbar-title span { letter-spacing: .2px; }
 
 .page-fit {
-  height: calc(100vh - var(--header-h) - var(--footer-h));
-  overflow: hidden; /* KEEP ONE-SCREEN LOOK */
+  height: calc(100vh - var(--header-h) - var(--footer-h) - var(--footer-lift));
+  overflow: hidden;
 }
 
 .command-footer {
@@ -213,12 +209,12 @@ html, body, #q-app {
   display: flex;
   align-items: center;
 }
+
 .command-bar {
   margin: 0 auto;
   width: min(1100px, 96vw);
   border-radius: 14px;
   padding: 6px 8px;
-
 }
 
 .command-input-field :deep(.q-field__control) {
@@ -244,7 +240,6 @@ html, body, #q-app {
   position: relative;
   min-height: 100vh;
   color: #d7dbe7;
-
   background:
     radial-gradient(1000px 600px at 8% 100%, rgba(41, 86, 160, 0.30) 0%, rgba(41, 86, 160, 0) 60%),
     radial-gradient(900px 500px at 88% 0%, rgba(25, 62, 120, 0.25) 0%, rgba(25, 62, 120, 0) 60%),
@@ -276,6 +271,10 @@ html, body, #q-app {
   opacity: 0.08;
   pointer-events: none;
   z-index: 0;
+}
+
+.q-footer {
+  bottom: var(--footer-lift);
 }
 
 .q-page-container, .q-header, .q-footer {

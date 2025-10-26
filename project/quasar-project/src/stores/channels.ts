@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 
+//typ jedneho kanala v aplikacii
 export type Channel = {
   name: string
   isPrivate: boolean
@@ -11,20 +12,28 @@ export type Channel = {
   lastMessageAt: string | null
   topInvitedFor: Record<string, string>
 }
-
+// mapa draftov: channel -> nick -> text draftu
 type DraftMap = Record<string, Record<string, string>>
+
+//mapa typing stavov: channel -> nick -> timestamp posledneho pisania
 type TypingMap = Record<string, Record<string, number>>
 
+//kluc v localstorage pre trvale ulozenie kanalov
 const STORAGE_KEY = 'channels_v2'
 
+//vrati aktualny cas v iso formate
 function nowISO() {
   return new Date().toISOString()
 }
+
+//vrati datum v iso pred x dnami (na cistenie starych kanalov)
 function daysAgoISO(days: number) {
   const d = new Date()
   d.setDate(d.getDate() - days)
   return d.toISOString()
 }
+
+//nacita kanaly z localstorage a doplni pripadne chybajuce polia
 function load(): Channel[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -42,10 +51,13 @@ function load(): Channel[] {
     return []
   }
 }
+
+//ulozi aktualny zoznam kanalov do localstorage v JSON tvare
 function save(channels: Channel[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(channels))
 }
 
+//pinia store pre spravu kanalov, draftov a typing stavov
 export const useChannelsStore = defineStore('channels', {
   state: () => ({
     channels: load(),
@@ -66,18 +78,26 @@ export const useChannelsStore = defineStore('channels', {
       })
       return byInvite
     },
+
+    //overi, ci je pouzivatel vlastnik daneho kanala
     isOwner: (s) => (channelName: string, nickname: string) => {
       const c = s.channels.find(c => c.name === channelName)
       return c ? c.ownerNickname === nickname : false
     },
+
+    //overi clenstvo pouzivatela v kanali
     isMember: (s) => (channelName: string, nickname: string) => {
       const c = s.channels.find(c => c.name === channelName)
       return c ? c.members.includes(nickname) : false
     },
+
+    //overi, ci je pouzivatel zabanovany v kanali
     isBanned: (s) => (channelName: string, nickname: string) => {
       const c = s.channels.find(c => c.name === channelName)
       return c ? c.banned.includes(nickname) : false
     },
+
+    //vrati zoznam momentalne pisucich v kanali (okrem volitela exceptNick), s timeoutom 3s
     typingList: (s) => (channelName: string, exceptNick?: string) => {
       const ch = s.typing[channelName] || {}
       const now = Date.now()
@@ -85,13 +105,17 @@ export const useChannelsStore = defineStore('channels', {
         .filter(([nick, ts]) => (nick !== (exceptNick || '')) && now - ts < 3000)
         .map(([nick]) => nick)
     },
+
+    //vrati draft text pre dany kanal a nick (alebo prazdny string)
     draftOf: (s) => (channelName: string, nickname: string) => {
       return s.drafts?.[channelName]?.[nickname] || ''
     }
   },
+
+  //actions: menia stav, volaju ukladanie, implementuju logiku kanalov
   actions: {
     persist() { save(this.channels as Channel[]) },
-
+    //pripoji pouzivatela do kanala, alebo kanal vytvori ak neexistuje
     joinChannel(
       a: string | { byNick?: string; name: string; isPrivate?: boolean },
       b?: string,
@@ -155,7 +179,7 @@ export const useChannelsStore = defineStore('channels', {
 
       return { created: false, channel: exists }
     },
-
+    //prida pouzivatela do kanala , zrusi ban a nastavi top pozvanku
     invite(ownerNick: string, channelName: string, targetNick: string) {
       const ch = this.byName(channelName)
       if (!ch) throw new Error('Channel not found.')
@@ -168,6 +192,7 @@ export const useChannelsStore = defineStore('channels', {
       this.persist()
     },
 
+    //odoberie pouzivatela z kanala (len vlastnik)
     revoke(ownerNick: string, channelName: string, targetNick: string) {
       const ch = this.byName(channelName)
       if (!ch) throw new Error('Channel not found.')
@@ -175,7 +200,7 @@ export const useChannelsStore = defineStore('channels', {
       ch.members = ch.members.filter(n => n !== targetNick)
       this.persist()
     },
-
+    //vykopne pouzivatela z kanalA vlastnik banuje okamzite, bezny clen spusta hlasovanie (3 hlasy)
     kick(requester: string, channelName: string, targetNick: string) {
       const ch = this.byName(channelName)
       if (!ch) throw new Error('Channel not found.')
@@ -239,17 +264,15 @@ export const useChannelsStore = defineStore('channels', {
       if ((this.channels as Channel[]).length !== before) this.persist()
     },
 
+    //nastavi draft text a zaznaci typing pre dany kanal a nick
     setDraft(channelName: string, nickname: string, text: string) {
       if (!this.drafts[channelName]) this.drafts[channelName] = {}
       this.drafts[channelName][nickname] = text
       if (!this.typing[channelName]) this.typing[channelName] = {}
       this.typing[channelName][nickname] = Date.now()
     },
-    clearOwnDraft(channelName: string, nickname: string) {
-      if (this.drafts[channelName]) delete this.drafts[channelName][nickname]
-      if (this.typing[channelName]) delete this.typing[channelName][nickname]
-    },
 
+    //simuluje top pozvanku pre pouzivatela (na testovanie zoradenia)
     simulateTopInvite(channelName: string, targetNick: string) {
       const ch = this.byName(channelName)
       if (!ch) throw new Error('Channel not found.')

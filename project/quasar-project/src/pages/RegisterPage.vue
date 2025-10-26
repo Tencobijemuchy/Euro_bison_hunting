@@ -39,8 +39,9 @@ function onSubmit() {
 
 
 <template>
-  <q-page class="q-pa-xl flex flex-center">
-    <q-card flat class="glass auth-card q-pa-lg">
+  <q-page class="auth-page q-pa-xl flex items-start justify-center">
+
+  <q-card flat class="glass auth-card q-pa-lg">
 
       <div class="row items-center q-gutter-sm q-mb-md">
         <q-avatar square size="80px" class="bg-transparent">
@@ -104,6 +105,8 @@ function onSubmit() {
 
 
 <style scoped>
+
+
 .auth-card {
   width: 800px;
   max-width: 95vw;
@@ -122,5 +125,19 @@ function onSubmit() {
   box-shadow: 0 0 0 2px rgba(74,163,255,0.25);
   background: rgba(255,255,255,0.06);
 }
+@media (max-width: 1500px) {
+  .auth-page { padding-top: 16px; }
+}
+
+.auth-page {
+  height: 100%;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+
+  padding-bottom: calc(
+    var(--footer-h, 68px) + var(--footer-lift, 0px) + env(safe-area-inset-bottom) + 24px
+  );
+}
+
 
 </style>

@@ -64,11 +64,9 @@
 
   <!--pole na text zobrazi sa akoze kto co pise-->
   <q-dialog v-model="peekOpen" persistent>
-    <q-card class="q-pa-md" style="min-width:540px;max-width:90vw;">
-
+    <q-card class="q-pa-md peek-card">
       <div class="row items-center justify-between q-mb-sm">
         <div class="text-subtitle1">
-
           {{ peekNick }} is typing ...
         </div>
         <q-btn dense flat round icon="close" @click="closePeek" />
@@ -79,10 +77,11 @@
         type="textarea"
         autogrow
         readonly
-
+        class="peek-input is-dark-field"
       />
     </q-card>
   </q-dialog>
+
 
 
 </template>
@@ -311,7 +310,7 @@ function initialsFromFullName(fullName: string) {
   box-shadow: 0 8px 28px rgba(0,0,0,0.18);
 
 
-  margin-bottom: 8vh;
+  margin-bottom: 12vh;
 }
 
 .msg {
@@ -374,6 +373,51 @@ function initialsFromFullName(fullName: string) {
 @keyframes oneDot{
   0%, 33%   { opacity: 1; }
   33.001%, 100% { opacity: 0; }
+}
+
+
+@media (max-width: 800px) {
+  .chat-pane {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+
+  }
+
+}
+
+.peek-card {
+  width: min(680px, 92vw);
+  max-height: 80vh;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+@media (max-width: 1023px) {
+  .peek-card {
+    width: min(560px, 94vw);
+    max-height: 78vh;
+  }
+}
+
+@media (max-width: 599px) {
+  .peek-card {
+    width: 94vw;
+    max-height: 72vh;
+  }
+}
+
+.peek-input :deep(textarea) {
+  max-height: 42vh;
+  overflow: auto !important;
+  line-height: 1.5;
+}
+
+@media (max-width: 599px) {
+  .peek-input :deep(textarea) {
+    max-height: 38vh;
+    font-size: 0.95rem;
+  }
 }
 
 </style>

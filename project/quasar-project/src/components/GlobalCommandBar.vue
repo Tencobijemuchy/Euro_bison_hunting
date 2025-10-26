@@ -1,20 +1,19 @@
 <template>
   <!--  command bar s inputom a cudlikom send -->
-  <div class="w-full q-pa-sm row no-wrap items-center q-gutter-sm command-bar">
-    <div class="col-11">
+  <div class="w-full q-pa-sm row no-wrap  q-gutter-sm command-bar">
+    <div class="col">
       <q-input
         v-model="cmd"
         dense
         outlined
         rounded
         clearable
-
-        class="col command-input-field"
+        class="command-input-field"
         @keyup.enter="run"
-      >
-      </q-input>
+      />
     </div>
-    <div class = "send_btn">
+
+    <div class="col-auto send_btn">
       <q-btn
         dense
         :flat="false"
@@ -29,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import {ref } from 'vue'
+import { ref } from 'vue'
 
 /* stav pola - aktualny text prikazu/spravy */
 const cmd = ref('')
@@ -44,13 +43,18 @@ function run() {
 }
 </script>
 
-
 <style scoped>
 .command-bar {
   background: transparent !important;
   border-top: none !important;
   box-shadow: none !important;
   gap: 20px !important;
+}
+
+
+.command-input-field {
+  min-width: 0;
+  width: 100%;
 }
 
 .command-input-field :deep(.q-field__control) {
@@ -73,5 +77,13 @@ function run() {
   font-size: 20px;
 }
 
+.send_btn {
+  flex: 0 0 auto;
+  margin-right: calc(var(--cmdbar-px, 12px) - 4px);
+}
 
+@media (max-width: 599px) {
+  .command-bar { gap: 10px !important; }
+  .command-input-field :deep(.q-field__native) { font-size: 1.125rem; }
+}
 </style>
