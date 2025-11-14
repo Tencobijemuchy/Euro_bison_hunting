@@ -58,7 +58,7 @@ export function useCommands(context: Ctx) {
           const msg = e instanceof Error ? e.message : 'join failed.';
           Notify.create({ type: 'negative', message: msg });
         }
-        channels.cleanupStaleChannels();
+        //channels.cleanupStaleChannels();
         return true;
       }
 
@@ -72,47 +72,33 @@ export function useCommands(context: Ctx) {
 
     if (txt.startsWith('/')) {
       try {
-        const [cmd, ...args] = txt.split(/\s+/)
+        const [cmd] = txt.split(/\s+/)
         switch (cmd) {
           //--------------------------------------------------------------------------------------------------INV
 
           case '/invite': {
-            const target = args[0] ?? ''
-            if (!target) throw new Error('usage: /invite nickname')
-            channels.invite(me, ch.name, target)
-            Notify.create({ type: 'positive', message: `invited ${target}` })
+            Notify.create({ type: 'positive', message: `invite` })
             break
           }
           //--------------------------------------------------------------------------------------------------REVOKE
           case '/revoke': {
-            const target = args[0] ?? ''
-            if (!target) throw new Error('usage: /revoke nickname')
-            channels.revoke(me, ch.name, target)
-            Notify.create({ type: 'warning', message: `revoked ${target}` })
+            Notify.create({ type: 'warning', message: `revoke` })
             break
           }
           //--------------------------------------------------------------------------------------------------KICK
+
           case '/kick': {
-            const target = args[0] ?? ''
-            if (!target) throw new Error('usage: /kick nickname')
-            const res = channels.kick(me, ch.name, target)
-            if (res.banned) {
-              Notify.create({ type: 'negative', message: `${target} was banned.` })
-            } else {
-              Notify.create({ type: 'info', message: `kick vote for ${target}: ${res.votes}/3` })
-            }
+            Notify.create({ type: 'warning', message: `kick` })
             break
           }
           //--------------------------------------------------------------------------------------------------QUIT
           case '/quit': {
-            channels.quitChannel(me, ch.name)
-            Notify.create({ type: 'warning', message: `channel ${ch.name} deleted.` })
+            Notify.create({ type: 'warning', message: `quit` })
             break
           }
           //--------------------------------------------------------------------------------------------------CANCEL
           case '/cancel': {
-            channels.cancelMembership(me, ch.name)
-            Notify.create({ type: 'info', message: `you left ${ch.name}.` })
+            Notify.create({ type: 'info', message: `cancel` })
             break
           }
           //--------------------------------------------------------------------------------------------------LIST

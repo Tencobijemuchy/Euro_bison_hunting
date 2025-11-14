@@ -21,14 +21,14 @@
         <q-item-section>
           <q-item-label>#{{ ch.name }} <q-badge v-if="isInvited(ch)" class="q-ml-sm" color="warning" text-color="black" label="invited" /></q-item-label>
           <q-item-label caption>
-            members: {{ ch.members.length }} • {{ ch.isPrivate ? 'private' : 'public' }}
+            members: {{ ch.members.length }} {{ ch.isPrivate ? 'private' : 'public' }}
           </q-item-label>
         </q-item-section>
         <q-item-section side class="row items-center q-gutter-sm">
-          <!-- DEV: simulácia “pozvánky” bez backendu -->
+
           <q-btn
             v-if="isDev"
-            dense flat icon="mail" label="Simulovať invite"
+            dense flat icon="mail" label="Simulate invite"
             @click.stop="channelsStore.simulateTopInvite(ch.name, me)"
           />
           <q-icon name="chevron_right" />

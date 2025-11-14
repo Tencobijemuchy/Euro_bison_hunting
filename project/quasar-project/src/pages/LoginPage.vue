@@ -27,7 +27,7 @@ function onSubmit() {
 </script>
 
 <template>
-  <q-page class="q-pa-xl flex flex-center">
+  <q-page class="auth-page q-pa-xl flex items-start justify-center">
     <q-card flat class="glass auth-card q-pa-lg">
 
       <!--logo-->
