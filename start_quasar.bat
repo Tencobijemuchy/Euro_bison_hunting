@@ -1,2 +1,2 @@
-cd project\quasar-project
+cd quasar-frontend
 npx quasar dev
