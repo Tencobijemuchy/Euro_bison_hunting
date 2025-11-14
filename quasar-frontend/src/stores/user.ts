@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { Notify } from 'quasar'
-import { authenticateUser, registerUser, type MockUser } from 'src/utils/user_authentication'
+import axios, { AxiosError } from 'axios'
+
+// API base URL
+const API_URL = 'http://localhost:3333/api'
 
 type UserPublic = {
   id: number
@@ -8,6 +11,7 @@ type UserPublic = {
   lastName: string
   nickname: string
   email: string
+  status?: 'online' | 'dnd' | 'offline'
 }
 
 const SESSION_KEY = 'session_user'
@@ -30,44 +34,88 @@ export const useUserStore = defineStore('user', {
       this.me = raw ? (JSON.parse(raw) as UserPublic) : null
     },
 
-    register(payload: {
+    async register(payload: {
       firstName: string
       lastName: string
       nickname: string
       email: string
       password: string
     }) {
-      const created: MockUser = registerUser(payload)
-      const pub: UserPublic = {
-        id: created.id,
-        firstName: created.firstName,
-        lastName: created.lastName,
-        nickname: created.nickname,
-        email: created.email,
+      try {
+        const response = await axios.post(`${API_URL}/auth/register`, payload)
+        const user: UserPublic = response.data
+
+        this.me = user
+        this.persistSession()
+
+        Notify.create({
+          type: 'positive',
+          message: 'Registration successful'
+        })
+      } catch (error) {
+        const message = error instanceof AxiosError
+          ? error.response?.data?.message || 'Registration failed'
+          : 'Registration failed'
+        Notify.create({
+          type: 'negative',
+          message
+        })
+        throw error
       }
-      this.me = pub
-      this.persistSession()
-      Notify.create({ type: 'positive', message: 'Registration successful' })
     },
 
-    login(identifier: string, password: string) {
-      const u: MockUser = authenticateUser(identifier, password)
-      const pub: UserPublic = {
-        id: u.id,
-        firstName: u.firstName,
-        lastName: u.lastName,
-        nickname: u.nickname,
-        email: u.email,
+    async login(identifier: string, password: string) {
+      try {
+        const response = await axios.post(`${API_URL}/auth/login`, {
+          identifier,
+          password,
+        })
+        const user: UserPublic = response.data
+
+        this.me = user
+        this.persistSession()
+
+        Notify.create({
+          type: 'positive',
+          message: `Welcome, ${user.nickname}`
+        })
+      } catch (error) {
+        const message = error instanceof AxiosError
+          ? error.response?.data?.message || 'Login failed'
+          : 'Login failed'
+        Notify.create({
+          type: 'negative',
+          message
+        })
+        throw error
       }
-      this.me = pub
-      this.persistSession()
-      Notify.create({ type: 'positive', message: `Welcome, ${pub.nickname}` })
     },
 
-    logout() {
-      this.me = null
-      localStorage.removeItem(SESSION_KEY)
-      Notify.create({ type: 'info', message: 'Logged out' })
+    async logout() {
+      try {
+        if (this.me) {
+          await axios.post(`${API_URL}/auth/logout`, {
+            userId: this.me.id,
+          })
+        }
+
+        this.me = null
+        localStorage.removeItem(SESSION_KEY)
+
+        Notify.create({
+          type: 'info',
+          message: 'Logged out'
+        })
+      } catch {
+        // Aj keď API zlyhá, odhláš sa lokálne
+        this.me = null
+        localStorage.removeItem(SESSION_KEY)
+
+        Notify.create({
+          type: 'info',
+          message: 'Logged out'
+        })
+      }
     },
   },
 })

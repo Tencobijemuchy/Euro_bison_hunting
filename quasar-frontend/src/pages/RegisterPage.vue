@@ -1,32 +1,35 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { useUserStore } from 'src/stores/user'
+import { useUserStore } from 'stores/user'
 import { Notify } from 'quasar'
 
 const router = useRouter()
 const user = useUserStore()
+
 const loading = ref(false)
 
+// Formulárové dáta
 const form = reactive({
   firstName: '',
   lastName: '',
   nickname: '',
   email: '',
-  password: '',
+  password: ''
 })
 
-const r = {
-  required: (v: string) => !!v || 'Required',
-  email: (v: string) => /.+@.+\..+/.test(v) || 'Invalid email',
-  min6: (v: string) => (v?.length ?? 0) >= 6 || 'Min 6 characters',
-  nickname: (v: string) => /^[a-zA-Z0-9_.-]{3,20}$/.test(v) || '3–20 letters/digits/._-',
+// Validačné pravidlá
+const rules = {
+  required: (val: string) => !!val || 'Field is required',
+  email: (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) || 'Invalid email',
+  nickname: (val: string) => val.length >= 3 || 'Nickname must be at least 3 characters',
+  min6: (val: string) => val.length >= 6 || 'Password must be at least 6 characters'
 }
 
-function onSubmit() {
+const onSubmit = async () => {
   try {
     loading.value = true
-    user.register({ ...form })
+    await user.register({ ...form })
     void router.push('/')
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Registration failed'
@@ -37,42 +40,66 @@ function onSubmit() {
 }
 </script>
 
-
 <template>
   <q-page class="auth-page q-pa-xl flex items-start justify-center">
-
-  <q-card flat class="glass auth-card q-pa-lg">
-
+    <q-card flat class="glass auth-card q-pa-lg">
       <div class="row items-center q-gutter-sm q-mb-md">
         <q-avatar square size="80px" class="bg-transparent">
           <img src="src/assets/e_bison.png" alt="e-Bison logo" />
         </q-avatar>
-
       </div>
 
-
-
       <q-form @submit.prevent="onSubmit" class="q-gutter-md">
-        <q-input v-model="form.firstName" label="First name"  :rules="[r.required]"  outlined class="is-dark-field">
+        <q-input
+          v-model="form.firstName"
+          label="First name"
+          :rules="[rules.required]"
+          outlined
+          class="is-dark-field"
+        >
           <template #prepend><q-icon name="badge" /></template>
         </q-input>
 
-        <q-input v-model="form.lastName"  label="Last name"   :rules="[r.required]"  outlined class="is-dark-field">
+        <q-input
+          v-model="form.lastName"
+          label="Last name"
+          :rules="[rules.required]"
+          outlined
+          class="is-dark-field"
+        >
           <template #prepend><q-icon name="badge" /></template>
         </q-input>
 
-        <q-input v-model="form.nickname"  label="Nickname"    :rules="[r.required, r.nickname]"  outlined class="is-dark-field">
+        <q-input
+          v-model="form.nickname"
+          label="Nickname"
+          :rules="[rules.required, rules.nickname]"
+          outlined
+          class="is-dark-field"
+        >
           <template #prepend><q-icon name="tag" /></template>
         </q-input>
 
-        <q-input v-model="form.email"     label="Email"       :rules="[r.required, r.email]"  outlined class="is-dark-field">
+        <q-input
+          v-model="form.email"
+          label="Email"
+          :rules="[rules.required, rules.email]"
+          outlined
+          class="is-dark-field"
+        >
           <template #prepend><q-icon name="mail" /></template>
         </q-input>
 
-        <q-input v-model="form.password"  label="Password"    :rules="[r.required, r.min6]" type="password" outlined class="is-dark-field">
+        <q-input
+          v-model="form.password"
+          label="Password"
+          :rules="[rules.required, rules.min6]"
+          type="password"
+          outlined
+          class="is-dark-field"
+        >
           <template #prepend><q-icon name="lock" /></template>
         </q-input>
-
 
         <div class="row justify-center">
           <div class="col-md-12">
@@ -93,20 +120,16 @@ function onSubmit() {
               flat
               label="I have an account – Login"
               class="full-width"
-              @click="$router.push('/login')"
+              @click="router.push('/login')"
             />
           </div>
         </div>
-
       </q-form>
     </q-card>
   </q-page>
 </template>
 
-
 <style scoped>
-
-
 .auth-card {
   width: 800px;
   max-width: 95vw;
@@ -120,11 +143,13 @@ function onSubmit() {
   border-radius: 12px;
   transition: box-shadow .18s ease, border-color .18s ease, background .18s ease;
 }
+
 .is-dark-field :deep(.q-field__control:focus-within) {
   border-color: #4aa3ff;
   box-shadow: 0 0 0 2px rgba(74,163,255,0.25);
   background: rgba(255,255,255,0.06);
 }
+
 @media (max-width: 1500px) {
   .auth-page { padding-top: 16px; }
 }
@@ -133,11 +158,8 @@ function onSubmit() {
   height: 100%;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
-
   padding-bottom: calc(
     var(--footer-h, 68px) + var(--footer-lift, 0px) + env(safe-area-inset-bottom) + 24px
   );
 }
-
-
 </style>

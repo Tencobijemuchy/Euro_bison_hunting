@@ -1,3 +1,4 @@
+/*
 export type MockUser = {
   id: number
   firstName: string
@@ -47,3 +48,4 @@ export function authenticateUser(identifier: string, password: string): MockUser
   if (!found) throw new Error('zle meno/heslo alebo si sa neregistroval ')
   return found
 }
+*/
