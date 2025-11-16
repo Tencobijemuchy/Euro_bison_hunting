@@ -16,7 +16,8 @@ export default class extends BaseSchema {
       table.string('nick_name', 50).notNullable().unique()
       table.string('email', 255).notNullable().unique()
       table.string('password_hash', 255).notNullable()
-      table.enum('status', ['online', 'dnd', 'offline']).defaultTo('online')
+      table.enum('status', ['online', 'dnd', 'offline'])
+      table.enum('notifications', ['All', 'Mentions only', 'Off'])
       table.timestamp('created_at', { useTz: true }).defaultTo(this.now())
       table.timestamp('updated_at', { useTz: true }).defaultTo(this.now())
     })
@@ -78,33 +79,23 @@ export default class extends BaseSchema {
       table.timestamp('updated_at', { useTz: true }).defaultTo(this.now())
     })
 
-    // 7. Table pre user settings
-    this.schema.createTable('user_settings', (table) => {
-      table.increments('id').primary()
-      table.integer('user_id').unsigned().notNullable().unique()
-      table.boolean('notifications_only_mentions').defaultTo(false)
-      table.boolean('notifications_enabled').defaultTo(true)
-      table.timestamp('created_at', { useTz: true }).defaultTo(this.now())
-      table.timestamp('updated_at', { useTz: true }).defaultTo(this.now())
-    })
-
     // ========================================
     // faza 2: Pridanie foreign keys a constraints
     // ========================================
 
-    // Foreign keys pre Channels tabuľku
+    // Foreign keys pre Channels
     this.schema.alterTable('channels', (table) => {
       table.foreign('owner_id').references('id').inTable('users').onDelete('CASCADE')
     })
 
-    // Foreign keys pre Messages tabuľku
+    // Foreign keys pre Messages
     this.schema.alterTable('messages', (table) => {
       table.foreign('channel_id').references('id').inTable('channels').onDelete('CASCADE')
       table.foreign('author_id').references('id').inTable('users').onDelete('CASCADE')
       table.foreign('mentioned_user_id').references('id').inTable('users').onDelete('SET NULL')
     })
 
-    // Foreign keys a unique constraint pre Invitations tabuľku
+    // Foreign keys a unique constraint pre Invitations
     this.schema.alterTable('invitations', (table) => {
       table.foreign('channel_id').references('id').inTable('channels').onDelete('CASCADE')
       table.foreign('inviter_id').references('id').inTable('users').onDelete('CASCADE')
@@ -112,67 +103,18 @@ export default class extends BaseSchema {
       table.unique(['channel_id', 'invitee_id'])
     })
 
-    // Foreign keys a unique constraint pre channel_user pivot tabuľku
+    // Foreign keys a unique constraint pre channel_user
     this.schema.alterTable('channel_user', (table) => {
       table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE')
       table.foreign('channel_id').references('id').inTable('channels').onDelete('CASCADE')
       table.unique(['user_id', 'channel_id'])
     })
 
-    // Foreign keys a unique constraint pre typing_indicators tabuľku
+    // Foreign keys a unique constraint pre typing_indicators
     this.schema.alterTable('typing_indicators', (table) => {
       table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE')
       table.foreign('channel_id').references('id').inTable('channels').onDelete('CASCADE')
       table.unique(['user_id', 'channel_id'])
     })
-
-    // Foreign key pre user_settings tabuľku
-    this.schema.alterTable('user_settings', (table) => {
-      table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE')
-    })
-  }
-
-  async down() {
-    // Mazanie v opačnom poradí - najprv odobrať foreign keys, potom tabuľky
-
-    // Odobrať foreign keys
-    this.schema.alterTable('user_settings', (table) => {
-      table.dropForeign(['user_id'])
-    })
-
-    this.schema.alterTable('typing_indicators', (table) => {
-      table.dropForeign(['user_id'])
-      table.dropForeign(['channel_id'])
-    })
-
-    this.schema.alterTable('channel_user', (table) => {
-      table.dropForeign(['user_id'])
-      table.dropForeign(['channel_id'])
-    })
-
-    this.schema.alterTable('invitations', (table) => {
-      table.dropForeign(['channel_id'])
-      table.dropForeign(['inviter_id'])
-      table.dropForeign(['invitee_id'])
-    })
-
-    this.schema.alterTable('messages', (table) => {
-      table.dropForeign(['channel_id'])
-      table.dropForeign(['author_id'])
-      table.dropForeign(['mentioned_user_id'])
-    })
-
-    this.schema.alterTable('channels', (table) => {
-      table.dropForeign(['owner_id'])
-    })
-
-    // Vymazať tabuľky
-    this.schema.dropTableIfExists('user_settings')
-    this.schema.dropTableIfExists('typing_indicators')
-    this.schema.dropTableIfExists('channel_user')
-    this.schema.dropTableIfExists('invitations')
-    this.schema.dropTableIfExists('messages')
-    this.schema.dropTableIfExists('channels')
-    this.schema.dropTableIfExists('users')
   }
 }

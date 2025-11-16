@@ -12,6 +12,7 @@ type UserPublic = {
   nickname: string
   email: string
   status?: 'online' | 'dnd' | 'offline'
+  notifications?: 'all' | 'mentions' | 'off'
 }
 
 const SESSION_KEY = 'session_user'
@@ -115,6 +116,28 @@ export const useUserStore = defineStore('user', {
           type: 'info',
           message: 'Logged out'
         })
+      }
+    },
+    async updateSettings(status?: 'online' | 'dnd' | 'offline', notifications?: 'all' | 'mentions' | 'off') {
+      try {
+        if (!this.me) return
+
+        const response = await axios.patch(`${API_URL}/auth/update-settings`, {
+          userId: this.me.id,
+          status,
+          notifications,
+        })
+
+        // Aktualizuj lokálny stav
+        if (this.me) {
+          if (status) this.me.status = status
+          if (response.data.notifications && this.me) {
+            this.me.notifications = response.data.notifications
+          }
+          this.persistSession()
+        }
+      } catch (error) {
+        console.error('Update settings error:', error)
       }
     },
   },

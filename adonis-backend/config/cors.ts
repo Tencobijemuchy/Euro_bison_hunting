@@ -1,3 +1,4 @@
+
 import { defineConfig } from '@adonisjs/cors'
 
 export default defineConfig({

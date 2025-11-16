@@ -1,100 +1,90 @@
 import { defineStore } from 'pinia'
+import { api } from 'src/boot/axios'
 
-//typ jedneho kanala v aplikacii
+// typ jedneho kanala - channelName nie name!
 export type Channel = {
-  name: string
+  id?: number
+  channelName: string
   isPrivate: boolean
   ownerNickname: string
+  ownerId?: number
   members: string[]
   banned: string[]
   kickVotes: Record<string, string[]>
   createdAt: string
-  lastMessageAt: string | null
+  lastActivityAt: string | null
   topInvitedFor: Record<string, string>
+  status: string
 }
-// mapa draftov: channel -> nick -> text draftu
+
+// mapa draftov: channel -> nick -> text draftu (lokalne)
 type DraftMap = Record<string, Record<string, string>>
 
-//mapa typing stavov: channel -> nick -> timestamp posledneho pisania
+// mapa typing stavov: channel -> nick -> timestamp (lokalne)
 type TypingMap = Record<string, Record<string, number>>
 
-//kluc v localstorage pre trvale ulozenie kanalov
-const STORAGE_KEY = 'channels_v2'
-
-//vrati aktualny cas v iso formate
-function nowISO() {
-  return new Date().toISOString()
-}
-
-
-
-
-//nacita kanaly z localstorage a doplni pripadne chybajuce polia
-function load(): Channel[] {
-
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) {
-      return []
-    }
-
-    const arr = JSON.parse(raw) as Channel[]
-    return arr.map(c => ({
-      ...c,
-
-    }))
-
-}
-
-//ulozi aktualny zoznam kanalov do localstorage v JSON tvare
-function save(channels: Channel[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(channels))
-}
-
-//pinia store pre spravu kanalov, draftov a typing stavov
 export const useChannelsStore = defineStore('channels', {
   state: () => ({
-    channels: load(),
+    channels: [] as Channel[],
     drafts: {} as DraftMap,
     typing: {} as TypingMap,
+    loading: false,
+    error: null as string | null,
   }),
+
   getters: {
-    byName: (s) => (name: string) => s.channels.find(c => c.name.toLowerCase() === name.toLowerCase()) || null,
+    // POZOR: pouziva channelName nie name!
+    byName: (s) => (name: string) =>
+      s.channels.find((c) => c.channelName.toLowerCase() === name.toLowerCase()) || null,
+
     sortedForUser: (s) => (nickname: string) => {
       const hasInvite = (c: Channel) => Boolean(c.topInvitedFor?.[nickname])
-      const byInvite = [...s.channels].sort((a, b) => {
-        const ai = hasInvite(a), bi = hasInvite(b)
+      return [...s.channels].sort((a, b) => {
+        const ai = hasInvite(a),
+          bi = hasInvite(b)
         if (ai && !bi) return -1
         if (!ai && bi) return 1
-        const la = a.lastMessageAt || a.createdAt
-        const lb = b.lastMessageAt || b.createdAt
+        const la = a.lastActivityAt || a.createdAt
+        const lb = b.lastActivityAt || b.createdAt
         return (lb || '').localeCompare(la || '')
       })
-      return byInvite
     },
 
-    //overi, ci je pouzivatel vlastnik daneho kanala
     isOwner: (s) => (channelName: string, nickname: string) => {
-      const c = s.channels.find(c => c.name === channelName)
+      const c = s.channels.find((c) => c.channelName === channelName)
       return c ? c.ownerNickname === nickname : false
     },
 
-    //overi clenstvo pouzivatela v kanali
     isMember: (s) => (channelName: string, nickname: string) => {
-      const c = s.channels.find(c => c.name === channelName)
+      const c = s.channels.find((c) => c.channelName === channelName)
       return c ? c.members.includes(nickname) : false
     },
 
-    //vrati draft text pre dany kanal a nick (alebo prazdny string)
     draftOf: (s) => (channelName: string, nickname: string) => {
       return s.drafts?.[channelName]?.[nickname] || ''
-    }
+    },
   },
 
-  //actions: menia stav, volaju ukladanie, implementuju logiku kanalov
   actions: {
-    persist() { save(this.channels as Channel[]) },
-    //pripoji pouzivatela do kanala, alebo kanal vytvori ak neexistuje
-    joinChannel(
+    // Nacita kanaly z backendu
+    async loadChannels() {
+      this.loading = true
+      this.error = null
+
+      try {
+        const response = await api.get('/channels')
+        this.channels = response.data
+      } catch (err: unknown) {
+        const error = err as { response?: { data?: { message?: string } } }
+        this.error = error.response?.data?.message || 'Failed to load channels'
+        console.error('Error loading channels:', err)
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // Join/vytvor kanal - vola backend API
+    async joinChannel(
       a: string | { byNick?: string; name: string; isPrivate?: boolean },
       b?: string,
       c?: boolean
@@ -103,6 +93,7 @@ export const useChannelsStore = defineStore('channels', {
       let nameRaw: string
       let isPrivateFlag: boolean | undefined
 
+      // Podporuje obe signatury
       if (typeof a === 'string') {
         byNick = a
         nameRaw = (b ?? '').trim()
@@ -113,38 +104,40 @@ export const useChannelsStore = defineStore('channels', {
         isPrivateFlag = a.isPrivate
       }
 
-      if (!nameRaw) {
-        throw new Error('Channel name required.')
-      }
-      if (!byNick) {
-        throw new Error('User nickname required.')
-      }
+      if (!nameRaw) throw new Error('Channel name required.')
+      if (!byNick) throw new Error('User nickname required.')
 
-      const name = nameRaw
-      const exists = this.channels.find(cn => cn.name.toLowerCase() === name.toLowerCase())
+      try {
+        // Zavolaj AdonisJS backend
+        const response = await api.post('/channels/join', {
+          nickname: byNick,
+          channelName: nameRaw,
+          isPrivate: !!isPrivateFlag,
+        })
 
-      if (!exists) {
-        const ch: Channel = {
-            name,
-            isPrivate: !!isPrivateFlag,
-            ownerNickname: byNick,
-            members: [byNick],
-            banned: [],
-            kickVotes: {},
-            createdAt: new Date().toISOString(),
-            lastMessageAt: null,
-            topInvitedFor: {}
-          }
-        ;(this.channels as Channel[]).push(ch)
-        this.persist()
-        return { created: true, channel: ch }
+        const { created, channel } = response.data
+
+        // Aktualizuj lokalny stav
+        const exists = this.channels.find(
+          (c) => c.channelName.toLowerCase() === channel.channelName.toLowerCase()
+        )
+
+        if (exists) {
+          Object.assign(exists, channel)
+        } else {
+          this.channels.push(channel)
+        }
+
+        return { created, channel }
+      } catch (err: unknown) {
+        const error = err as { response?: { data?: { message?: string } } }
+        this.error = error.response?.data?.message || 'Failed to join channel'
+        console.error('Error joining channel:', err)
+        throw err
       }
-      return { created: false, channel: exists }
     },
 
-
-
-    //nastavi draft text a zaznaci typing pre dany kanal a nick
+    // Drafty su len lokalne (bez backendu)
     setDraft(channelName: string, nickname: string, text: string) {
       if (!this.drafts[channelName]) this.drafts[channelName] = {}
       this.drafts[channelName][nickname] = text
@@ -152,13 +145,11 @@ export const useChannelsStore = defineStore('channels', {
       this.typing[channelName][nickname] = Date.now()
     },
 
-    //simuluje top pozvanku pre pouzivatela (na testovanie zoradenia)
+    // Simulate invite (zatial len lokalne)
     simulateTopInvite(channelName: string, targetNick: string) {
       const ch = this.byName(channelName)
       if (!ch) throw new Error('Channel not found.')
-      ch.topInvitedFor[targetNick] = nowISO()
-      this.persist()
-    }
-
+      ch.topInvitedFor[targetNick] = new Date().toISOString()
+    },
   },
 })

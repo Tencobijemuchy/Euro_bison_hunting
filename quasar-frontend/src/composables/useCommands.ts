@@ -1,4 +1,3 @@
-
 import { Notify } from 'quasar'
 import { useChannelsStore } from 'src/stores/channels'
 import { useUserStore } from 'src/stores/user'
@@ -23,8 +22,8 @@ export function useCommands(context: Ctx) {
   // fallback pre pushMessage ak nepride z kontextu
   const push = context.pushMessage ?? (() => {})
 
-  //spracovanie vstupneho textu
-  function run(raw: string) {
+  //spracovanie vstupneho textu - ZMENA: async
+  async function run(raw: string) {
     //osekanie vstupu
     const txt = (raw ?? '').trim()
     if (!txt) return false
@@ -39,7 +38,7 @@ export function useCommands(context: Ctx) {
     if (txt.startsWith('/')) {
       const [cmd, ...args] = txt.split(/\s+/);
 
-      // /join je globalny
+      // /join je globalny - ZMENA: await
       if (cmd === '/join') {
         const target = args[0] ?? '';
         if (!target) {
@@ -48,7 +47,8 @@ export function useCommands(context: Ctx) {
         }
         const isPrivate = (args[1]?.toLowerCase() ?? '') === 'private';
         try {
-          const res = channels.joinChannel(me, target, isPrivate);
+          // ZMENA: await na async operaciu
+          const res = await channels.joinChannel(me, target, isPrivate);
           Notify.create({
             type: 'positive',
             message: res.created ? `channel ${target} created.` : `joined ${target}.`,
@@ -119,8 +119,9 @@ export function useCommands(context: Ctx) {
     }
 
 
-    if (!channels.isMember(ch.name, me)) {
-      channels.joinChannel(me, ch.name)
+    if (!channels.isMember(ch.channelName, me)) {
+      // ZMENA: await pre join ak user nie je clenom
+      await channels.joinChannel(me, ch.channelName)
     }
 
 

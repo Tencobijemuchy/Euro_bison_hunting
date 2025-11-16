@@ -8,7 +8,7 @@ export default class AuthController {
     try {
       const payload = request.only(['firstName', 'lastName', 'nickname', 'email', 'password'])
 
-      // Validácia
+      // Validacia
       if (
         !payload.firstName ||
         !payload.lastName ||
@@ -19,13 +19,13 @@ export default class AuthController {
         return response.badRequest({ message: 'All fields are required' })
       }
 
-      // Skontroluj, či email už existuje
+      // check mail existing
       const existingEmail = await User.query().where('email', payload.email).first()
       if (existingEmail) {
         return response.badRequest({ message: 'Email already exists' })
       }
 
-      // Skontroluj, či nickname už existuje
+      // check nic existing
       const existingNick = await User.query().where('nick_name', payload.nickname).first()
       if (existingNick) {
         return response.badRequest({ message: 'Nickname already exists' })
@@ -41,7 +41,7 @@ export default class AuthController {
         status: 'online',
       })
 
-      // Vráť verejné údaje
+      // return params
       return response.created({
         id: user.id,
         firstName: user.firstName,
@@ -64,7 +64,7 @@ export default class AuthController {
         return response.badRequest({ message: 'Identifier and password are required' })
       }
 
-      // Nájdi usera podľa emailu alebo nicku
+      // find user by nick or mail
       const user = await User.query()
         .where('email', identifier)
         .orWhere('nick_name', identifier)
@@ -74,15 +74,13 @@ export default class AuthController {
         return response.unauthorized({ message: 'Invalid credentials' })
       }
 
-      // Skontroluj heslo
+      //check pass
       const isPasswordValid = await hash.verify(user.passwordHash, password)
       if (!isPasswordValid) {
         return response.unauthorized({ message: 'Invalid credentials' })
       }
 
-      // Update status na online
-      user.status = 'online'
-      await user.save()
+
 
       // Vráť verejné údaje
       return response.ok({
@@ -145,6 +143,43 @@ export default class AuthController {
     } catch (error) {
       console.error('Me error:', error)
       return response.internalServerError({ message: 'Failed to fetch user' })
+    }
+  }
+  // PATCH /api/auth/update-settings
+  async updateSettings({ request, response }: HttpContext) {
+    try {
+      const { userId, status, notifications } = request.only(['userId', 'status', 'notifications'])
+
+      if (!userId) {
+        return response.badRequest({ message: 'User ID is required' })
+      }
+
+      const user = await User.find(userId)
+
+      if (!user) {
+        return response.notFound({ message: 'User not found' })
+      }
+
+      // Update status ak je poskytnutý
+      if (status && ['online', 'dnd', 'offline'].includes(status)) {
+        user.status = status
+      }
+
+      // Update notifications ak sú poskytnuté
+      if (notifications && ['all', 'mentions', 'off'].includes(notifications)) {
+        user.notifications = notifications
+      }
+
+      await user.save()
+
+      return response.ok({
+        id: user.id,
+        status: user.status,
+        notifications: user.notifications,
+      })
+    } catch (error) {
+      console.error('Update settings error:', error)
+      return response.internalServerError({ message: 'Failed to update settings' })
     }
   }
 }

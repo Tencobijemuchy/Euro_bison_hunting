@@ -17,19 +17,36 @@
     </q-form>
 
     <q-list bordered separator>
-      <q-item v-for="ch in channels" :key="ch.name" clickable @click="go(ch.name)" :class="{ 'invited-outline': isInvited(ch) }">
+      <q-item
+        v-for="ch in channels"
+        :key="ch.channelName"
+        clickable
+        @click="go(ch.channelName)"
+        :class="{ 'invited-outline': isInvited(ch) }"
+      >
         <q-item-section>
-          <q-item-label>#{{ ch.name }} <q-badge v-if="isInvited(ch)" class="q-ml-sm" color="warning" text-color="black" label="invited" /></q-item-label>
+          <q-item-label>
+            #{{ ch.channelName }}
+            <q-badge
+              v-if="isInvited(ch)"
+              class="q-ml-sm"
+              color="warning"
+              text-color="black"
+              label="invited"
+            />
+          </q-item-label>
           <q-item-label caption>
-            members: {{ ch.members.length }} {{ ch.isPrivate ? 'private' : 'public' }}
+            members: {{ ch.members.length }} • {{ ch.isPrivate ? 'private' : 'public' }}
           </q-item-label>
         </q-item-section>
         <q-item-section side class="row items-center q-gutter-sm">
-
           <q-btn
             v-if="isDev"
-            dense flat icon="mail" label="Simulate invite"
-            @click.stop="channelsStore.simulateTopInvite(ch.name, me)"
+            dense
+            flat
+            icon="mail"
+            label="Simulate invite"
+            @click.stop="channelsStore.simulateTopInvite(ch.channelName, me)"
           />
           <q-icon name="chevron_right" />
         </q-item-section>
@@ -47,7 +64,6 @@ import { onCommandSubmit } from 'src/utils/cmdBus'
 import { useUserStore } from 'src/stores/user'
 import type { Channel } from 'src/stores/channels'
 
-
 const router = useRouter()
 const channelsStore = useChannelsStore()
 const user = useUserStore()
@@ -60,15 +76,18 @@ const isDev = import.meta.env.DEV
 
 // inicializacia useCommands pre list page: podporuj len /join a po uspechu presmeruj
 const { run: runCmd } = useCommands({
-  onJoinSuccess: (channelName) => {
-    void router.push({ name: 'channel', params: { channelName } })
-  }
+
 })
 
 // registracia globalneho command busu (footer input -> useCommands)
 let offBus: null | (() => void) = null
-onMounted(() => {
-  offBus = onCommandSubmit((text) => runCmd(text))
+onMounted(async () => {
+  offBus = onCommandSubmit((text) => {
+    void runCmd(text) // void = ignore promise
+  })
+
+  // Nacitaj kanaly pri otvoreni stranky
+  await channelsStore.loadChannels()
 })
 
 // odregistrovanie busu pri opusteni stranky
@@ -80,7 +99,7 @@ onBeforeUnmount(() => {
 function createOrJoin() {
   const name = newName.value.trim()
   if (!name) return
-  runCmd(`/join ${name}${isPrivate.value ? ' private' : ''}`)
+  void runCmd(`/join ${name}${isPrivate.value ? ' private' : ''}`)
   newName.value = ''
   isPrivate.value = false
 }
@@ -95,4 +114,8 @@ async function go(name: string) {
 }
 </script>
 
-
+<style scoped>
+.invited-outline {
+  border-left: 4px solid #f2c037;
+}
+</style>

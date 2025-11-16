@@ -1,11 +1,29 @@
 import { defineStore } from 'pinia'
-export type NotificationMode = 'all' | 'mentionsOnly' | 'off'
-export type UserStatus = 'online' | 'dnd' | 'offline'
+import { useUserStore } from './user'
+import { watch } from 'vue'
 
 export const useAppStore = defineStore('app', {
   state: () => ({
-    isAppVisible: false as boolean,
-    notifMode: 'all' as NotificationMode,
-    status: 'online' as UserStatus
-  })
+    status: 'online' as 'online' | 'dnd' | 'offline',
+    notifMode: 'all' as 'all' | 'mentions' | 'off',
+  }),
+  actions: {
+    init() {
+      const user = useUserStore()
+
+      watch(() => this.status, async (newStatus) => {
+        await user.updateSettings(newStatus, undefined)
+      })
+
+      watch(() => this.notifMode, async (newMode) => {
+        await user.updateSettings(undefined, newMode)
+      })
+
+
+      if (user.me) {
+        this.status = user.me.status || 'online'
+        this.notifMode = user.me.notifications || 'all'
+      }
+    },
+  },
 })

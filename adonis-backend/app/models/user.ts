@@ -23,6 +23,9 @@ export default class User extends BaseModel {
   @column()
   declare status: 'online' | 'dnd' | 'offline'
 
+  @column()
+  declare notifications: 'all' | 'mentions' | 'off'
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 

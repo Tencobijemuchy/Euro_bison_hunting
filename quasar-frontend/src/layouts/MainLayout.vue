@@ -138,7 +138,10 @@ const app = useAppStore()
 const user = useUserStore()
 const command = ref('')
 
-onMounted(() => user.loadSession())
+onMounted(() => {
+  user.loadSession()
+  app.init()
+})
 
 
 
