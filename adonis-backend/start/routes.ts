@@ -19,4 +19,10 @@ router.group(() => {
   router.get('/channels', [ChannelsController, 'index'] as const)
   router.get('/channels/:name', [ChannelsController, 'show'] as const)
   router.post('/channels/join', [ChannelsController, 'join'] as const)
+  router.delete('/channels/:id/quit', [ChannelsController, 'quit'] as const)
+
+  // Invite & Revoke
+  router.post('/channels/:channelName/invite', [ChannelsController, 'invite'] as const)
+  router.delete('/channels/:channelName/revoke', [ChannelsController, 'revoke'] as const)
+
 }).prefix('/api')

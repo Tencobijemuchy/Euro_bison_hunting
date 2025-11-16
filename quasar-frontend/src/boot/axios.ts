@@ -1,5 +1,6 @@
 import { boot } from 'quasar/wrappers'
-import axios, { AxiosInstance } from 'axios'
+import axios from 'axios'
+import type { AxiosInstance } from 'axios'
 
 declare module 'vue' {
   interface ComponentCustomProperties {
@@ -8,7 +9,7 @@ declare module 'vue' {
   }
 }
 
-// "api" používaj na volania backendu
+
 const api = axios.create({
   baseURL: 'http://localhost:3333/api'
 })

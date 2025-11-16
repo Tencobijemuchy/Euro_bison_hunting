@@ -11,7 +11,7 @@
       />
       <div class="channel-title">#{{ channelName }}</div>
       <q-badge v-if="channel?.isPrivate" color="secondary" label="private" />
-      <q-badge v-if="isOwner" color="primary" :label="`owner: ${channel?.ownerNickname}`" />
+      <q-badge v-if="channel?.ownerNickname" color="primary" :label="`owner: ${channel.ownerNickname}`" />
       <q-space />
 
       <div class="typing-bar">
@@ -46,15 +46,15 @@
           <q-avatar size="60px" color="primary" text-color="white">
             {{ initialsFromFullName(m.author) }}
           </q-avatar>          <div class="col">
-            <div class="text-caption">
-              <!-- meno -->
-              <span class="text-weight-medium">{{ m.author }}</span>
-              <!-- cas -->
-              <span class="text-grey-6 q-ml-xs">{{ formatTs(m.ts) }}</span>
-            </div>
-            <!-- sprava -->
-            <div v-html="renderText(m.text)" />
+          <div class="text-caption">
+            <!-- meno -->
+            <span class="text-weight-medium">{{ m.author }}</span>
+            <!-- cas -->
+            <span class="text-grey-6 q-ml-xs">{{ formatTs(m.ts) }}</span>
           </div>
+          <!-- sprava -->
+          <div v-html="renderText(m.text)" />
+        </div>
         </div>
       </div>
     </div>
@@ -92,7 +92,6 @@
 import { computed, onMounted,onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 //import { Dialog } from 'quasar'
-import { useUserStore } from 'src/stores/user'
 import { useChannelsStore } from 'src/stores/channels'
 import { useCommands } from 'src/composables/useCommands'
 //import MemberListDialog from 'src/components/MemberListDialog.vue'
@@ -105,7 +104,6 @@ type Msg = { id: string; author: string; text: string; ts: number; system?: bool
 const route = useRoute()
 const router = useRouter()
 const channelName = String(route.params.channelName)
-const user = useUserStore()
 const channels = useChannelsStore()
 //const { run: runCmd } = useCommands({ channelName })
 
@@ -118,9 +116,7 @@ function goBack() {
 }
 
 
-const me = computed(() => user.me?.nickname || '')
 const channel = computed(() => channels.byName(channelName))
-const isOwner = computed(() => channels.isOwner(channelName, me.value))
 //const typingOthers = computed(() => channels.typingList(channelName, me.value))
 
 // generator unikatneho id
@@ -196,7 +192,7 @@ function formatTs(ts: number) {
 function openMembers() {
   const ch = channel.value
   if (!ch) return
-  runCmd('/list')
+  void runCmd('/list')
 }
 
 // stav a funkcie pre draft peek dialog
@@ -222,7 +218,7 @@ onMounted(() => {
   scrollToBottomCb()
 
   offBus = onCommandSubmit((text) => {
-    runCmd(text)
+    void runCmd(text)
   })
 
   channels.setDraft(channelName, '@david', 'text text text text text')
@@ -257,7 +253,8 @@ function scrollToBottomCb() {
 const { run: runCmd } = useCommands({
   channelName,
   pushMessage: pushMessageCb,
-  onAfterNormalMessage: scrollToBottomCb
+  onAfterNormalMessage: scrollToBottomCb,
+  router,
 })
 
 // helper na vypocet inicial z celeho mena (berie prve dve slova)

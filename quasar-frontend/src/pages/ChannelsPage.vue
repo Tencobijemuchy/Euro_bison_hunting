@@ -41,14 +41,15 @@
         </q-item-section>
         <q-item-section side class="row items-center q-gutter-sm">
           <q-btn
-            v-if="isDev"
+            v-if="!isMember(ch)"
             dense
             flat
-            icon="mail"
-            label="Simulate invite"
-            @click.stop="channelsStore.simulateTopInvite(ch.channelName, me)"
+            color="primary"
+            icon="login"
+            label="Join"
+            @click.stop="joinChannel(ch.channelName)"
           />
-          <q-icon name="chevron_right" />
+
         </q-item-section>
       </q-item>
     </q-list>
@@ -69,14 +70,19 @@ const channelsStore = useChannelsStore()
 const user = useUserStore()
 const me = computed(() => user.me?.nickname || '')
 
-const channels = computed(() => channelsStore.sortedForUser(me.value))
+const channels = computed(() =>
+  channelsStore.sortedForUser(me.value).filter(ch =>
+      !ch.isPrivate || ch.members.includes(me.value) || Boolean(ch.topInvitedFor?.[me.value])
+
+  )
+)
+
 const newName = ref('')
 const isPrivate = ref(false)
-const isDev = import.meta.env.DEV
 
 // inicializacia useCommands pre list page: podporuj len /join a po uspechu presmeruj
 const { run: runCmd } = useCommands({
-
+  router,
 })
 
 // registracia globalneho command busu (footer input -> useCommands)
@@ -104,8 +110,18 @@ function createOrJoin() {
   isPrivate.value = false
 }
 
+function isMember(ch: Channel) {
+  return ch.members.includes(me.value)
+}
+
 function isInvited(ch: Channel) {
   return Boolean(ch.topInvitedFor?.[me.value])
+}
+
+async function joinChannel(channelName: string) {
+  await runCmd(`/join ${channelName}`)
+  // Po úspešnom pripojení sa aktualizujú kanály
+  await channelsStore.loadChannels()
 }
 
 // handler: preklik na detail konkretneho kanala zo zoznamu

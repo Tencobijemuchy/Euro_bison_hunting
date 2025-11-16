@@ -7,9 +7,9 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', component: () => import('src/pages/IndexPage.vue'), meta: { hideFooter: true } },
       { path: 'login', component: () => import('src/pages/LoginPage.vue'), meta: { hideFooter: true } },
-      { path: 'register', component: () => import('src/pages/RegisterPage.vue'),meta: { hideFooter: true } },
-      { path: 'channels', component: () => import('pages/ChannelsPage.vue') },
-      { path: 'c/:channelName', component: () => import('pages/ChannelPage.vue'), props: true }
+      { path: 'register', component: () => import('src/pages/RegisterPage.vue'), meta: { hideFooter: true } },
+      { path: 'channels', component: () => import('src/pages/ChannelsPage.vue') },
+      { path: 'c/:channelName', component: () => import('src/pages/ChannelPage.vue'), props: true }
     ],
   },
   { path: '/:catchAll(.*)*', component: () => import('src/pages/ErrorNotFound.vue') },

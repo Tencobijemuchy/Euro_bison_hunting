@@ -82,7 +82,7 @@ export default class AuthController {
 
 
 
-      // Vráť verejné údaje
+      // return pub params
       return response.ok({
         id: user.id,
         firstName: user.firstName,
@@ -160,12 +160,11 @@ export default class AuthController {
         return response.notFound({ message: 'User not found' })
       }
 
-      // Update status ak je poskytnutý
+
       if (status && ['online', 'dnd', 'offline'].includes(status)) {
         user.status = status
       }
 
-      // Update notifications ak sú poskytnuté
       if (notifications && ['all', 'mentions', 'off'].includes(notifications)) {
         user.notifications = notifications
       }

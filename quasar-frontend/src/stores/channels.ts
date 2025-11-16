@@ -1,13 +1,17 @@
 import { defineStore } from 'pinia'
 import { api } from 'src/boot/axios'
+import axios, { AxiosError } from 'axios'
+import { useUserStore } from './user'
 
-// typ jedneho kanala - channelName nie name!
+
+const API_URL = 'http://localhost:3333/api'
+
 export type Channel = {
   id?: number
   channelName: string
   isPrivate: boolean
   ownerNickname: string
-  ownerId?: number
+  ownerId: number
   members: string[]
   banned: string[]
   kickVotes: Record<string, string[]>
@@ -33,7 +37,7 @@ export const useChannelsStore = defineStore('channels', {
   }),
 
   getters: {
-    // POZOR: pouziva channelName nie name!
+    user: () => useUserStore(),
     byName: (s) => (name: string) =>
       s.channels.find((c) => c.channelName.toLowerCase() === name.toLowerCase()) || null,
 
@@ -137,19 +141,75 @@ export const useChannelsStore = defineStore('channels', {
       }
     },
 
+    // Invite user
+    async inviteUser(channelName: string, inviterNickname: string, inviteeNickname: string) {
+      try {
+        const response = await api.post(`/channels/${channelName}/invite`, {
+          inviterNickname,
+          inviteeNickname,
+        })
+
+        // Reload channels aby sa aktualizovali invitations
+        await this.loadChannels()
+
+        return response.data
+      } catch (err: unknown) {
+        const error = err as { response?: { data?: { message?: string } } }
+        const message = error.response?.data?.message || 'Failed to invite user'
+        throw new Error(message)
+      }
+    },
+
+    // Revoke - odoberie usera alebo zrusi inv
+    async revokeUser(channelName: string, revokerNickname: string, targetNickname: string) {
+      try {
+        const response = await api.delete(`/channels/${channelName}/revoke`, {
+          data: {
+            revokerNickname,
+            targetNickname,
+          }
+        })
+
+        // Reload channels aby sa aktualizovali members a invitations
+        await this.loadChannels()
+
+        return response.data
+      } catch (err: unknown) {
+        const error = err as { response?: { data?: { message?: string } } }
+        const message = error.response?.data?.message || 'Failed to revoke'
+        throw new Error(message)
+      }
+    },
+
+    async deleteChannel(channelId: number) {
+      try {
+        const userStore = useUserStore()
+        if (!userStore.me) throw new Error('Not authenticated')
+
+        const response = await axios.delete(`${API_URL}/channels/${channelId}/quit`, {
+          headers: {
+            'X-User-Id': userStore.me.id.toString()
+          }
+        })
+
+        //del kanal z local store
+        this.channels = this.channels.filter(ch => ch.id !== channelId)
+
+        return response.data
+      } catch (error) {
+        const message = error instanceof AxiosError
+          ? error.response?.data?.message || 'Failed to delete channel'
+          : 'Failed to delete channel'
+        throw new Error(message)
+      }
+    },
+
     // Drafty su len lokalne (bez backendu)
     setDraft(channelName: string, nickname: string, text: string) {
       if (!this.drafts[channelName]) this.drafts[channelName] = {}
       this.drafts[channelName][nickname] = text
       if (!this.typing[channelName]) this.typing[channelName] = {}
       this.typing[channelName][nickname] = Date.now()
-    },
-
-    // Simulate invite (zatial len lokalne)
-    simulateTopInvite(channelName: string, targetNick: string) {
-      const ch = this.byName(channelName)
-      if (!ch) throw new Error('Channel not found.')
-      ch.topInvitedFor[targetNick] = new Date().toISOString()
     },
   },
 })
