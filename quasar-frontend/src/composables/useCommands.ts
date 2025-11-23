@@ -9,10 +9,10 @@ type PushMsg = (msg: { author: string; text: string; ts?: number }) => void
 
 // kontext od volajuceho (channel page alebo channels page)
 type Ctx = {
-  channelName?: string                     // aktualny kanal
-  pushMessage?: PushMsg                    // pridanie beznej spravy
-  onAfterNormalMessage?: () => void        // napr. scroll na spodok
-  onJoinSuccess?: (chName: string, created: boolean) => void // callback po uspesnom commande
+  channelName?: string
+  pushMessage?: PushMsg
+  onAfterNormalMessage?: () => void
+  onJoinSuccess?: (chName: string, created: boolean) => void
   router?: Router
 }
 
@@ -172,9 +172,41 @@ export function useCommands(context: Ctx) {
           //--------------------------------------------------------------------------------------------------KICK
 
           case '/kick': {
-            Notify.create({ type: 'warning', message: `kick - not implemented yet` })
+            const rawTarget = args[0]?.trim()
+            const targetNickname = rawTarget?.replace(/^@/, '')
+
+            if (!targetNickname) {
+              Notify.create({
+                type: 'negative',
+                message: 'usage: /kick nickname'
+              })
+              break
+            }
+
+            // private kanal = len owner
+            if (ch.isPrivate && ch.ownerNickname !== me) {
+              Notify.create({
+                type: 'negative',
+                message: 'Only channel owner can kick in private channel'
+              })
+              break
+            }
+
+            try {
+              const res = await channels.kickUser(ch.channelName, me, targetNickname)
+
+              Notify.create({
+                type: res.permanent ? 'warning' : 'info',
+                message: res.message
+              })
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : 'Failed to kick'
+              Notify.create({ type: 'negative', message: msg })
+            }
+
             break
           }
+
           //--------------------------------------------------------------------------------------------------QUIT
           case '/quit': {
             if (ch.ownerId !== user.me?.id) {
@@ -278,7 +310,7 @@ export function useCommands(context: Ctx) {
 
     push({ author: me, text: txt, ts: Date.now() })
     context.onAfterNormalMessage?.()
-    return true
+    return false
   }
 
   // export verejne dostupnych funkcii

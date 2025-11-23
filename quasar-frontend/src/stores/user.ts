@@ -16,6 +16,7 @@ type UserPublic = {
 }
 
 const SESSION_KEY = 'session_user'
+const USER_ID_KEY = 'userId'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -33,6 +34,12 @@ export const useUserStore = defineStore('user', {
     loadSession() {
       const raw = localStorage.getItem(SESSION_KEY)
       this.me = raw ? (JSON.parse(raw) as UserPublic) : null
+
+      if (this.me?.id) {
+        sessionStorage.setItem(USER_ID_KEY, String(this.me.id))
+      } else {
+        sessionStorage.removeItem(USER_ID_KEY)
+      }
     },
 
     async register(payload: {
@@ -48,6 +55,8 @@ export const useUserStore = defineStore('user', {
 
         this.me = user
         this.persistSession()
+
+        sessionStorage.setItem(USER_ID_KEY, String(user.id))
 
         Notify.create({
           type: 'positive',
@@ -76,6 +85,8 @@ export const useUserStore = defineStore('user', {
         this.me = user
         this.persistSession()
 
+        sessionStorage.setItem(USER_ID_KEY, String(user.id))
+
         Notify.create({
           type: 'positive',
           message: `Welcome, ${user.nickname}`
@@ -102,6 +113,7 @@ export const useUserStore = defineStore('user', {
 
         this.me = null
         localStorage.removeItem(SESSION_KEY)
+        sessionStorage.removeItem(USER_ID_KEY)
 
         Notify.create({
           type: 'info',
@@ -111,6 +123,7 @@ export const useUserStore = defineStore('user', {
         // Aj keď API zlyhá, odhláš sa lokálne
         this.me = null
         localStorage.removeItem(SESSION_KEY)
+        sessionStorage.removeItem(USER_ID_KEY)
 
         Notify.create({
           type: 'info',

@@ -1,6 +1,7 @@
 import router from '@adonisjs/core/services/router'
 import AuthController from '#controllers/auth_controller'
 import ChannelsController from '#controllers/channels_controller'
+import MessagesController from '#controllers/messages_controller'
 
 // Health check
 router.get('/', async () => {
@@ -23,6 +24,11 @@ router.group(() => {
 
   // Invite & Revoke
   router.post('/channels/:channelName/invite', [ChannelsController, 'invite'] as const)
+  router.post('/channels/:channelName/kick', [ChannelsController, 'kick'] as const)
   router.delete('/channels/:channelName/revoke', [ChannelsController, 'revoke'] as const)
+
+  // Messages
+  router.get('/channels/:id/messages', [MessagesController, 'index'] as const)
+  router.post('/channels/:id/messages', [MessagesController, 'store'] as const)
 
 }).prefix('/api')

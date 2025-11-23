@@ -46,7 +46,7 @@
           <span class="q-ml-sm text-weight-medium"></span>
         </q-toolbar-title>
 
-        <!-- menu pre usera (NECHÁVAM BEZ ZMIEN) -->
+        <!-- menu pre usera-->
         <div v-if="user.isLogged" class="row items-center q-gutter-sm">
           <q-badge color="primary">
             {{ user.fullName }} ({{ user.me?.nickname }})

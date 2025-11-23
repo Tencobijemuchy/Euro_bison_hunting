@@ -11,6 +11,7 @@
 
 import 'reflect-metadata'
 import { Ignitor, prettyPrintError } from '@adonisjs/core'
+import { createServer, type Server as NodeServer } from 'node:http'
 
 /**
  * URL to the application root. AdonisJS need it to resolve
@@ -29,17 +30,36 @@ const IMPORTER = (filePath: string) => {
   return import(filePath)
 }
 
-new Ignitor(APP_ROOT, { importer: IMPORTER })
+const ignitor = new Ignitor(APP_ROOT, { importer: IMPORTER })
+
+// build http server
+const httpServer = ignitor
   .tap((app) => {
     app.booting(async () => {
       await import('#start/env')
     })
+
     app.listen('SIGTERM', () => app.terminate())
     app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
   })
   .httpServer()
-  .start()
+
+let nodeServer: NodeServer
+
+
+//start http server
+httpServer
+  .start((handler) => {
+    nodeServer = createServer(handler)
+    return nodeServer
+  })
+  .then(async () => {
+    const { initSocket } = await import('#start/socket')
+    initSocket(nodeServer)
+    console.log('Socket.io server running')
+  })
   .catch((error) => {
     process.exitCode = 1
     prettyPrintError(error)
   })
+

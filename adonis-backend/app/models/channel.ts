@@ -41,5 +41,8 @@ export default class Channel extends BaseModel {
     pivotRelatedForeignKey: 'user_id',
     pivotTimestamps: true,
     pivotColumns: ['kick_count', 'is_banned', 'joined_at'],
+    onQuery: (query) => {
+      query.wherePivot('is_banned', false)
+    },
   })
   declare members: ManyToMany<typeof User>}

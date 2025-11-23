@@ -96,6 +96,8 @@ import { useChannelsStore } from 'src/stores/channels'
 import { useCommands } from 'src/composables/useCommands'
 //import MemberListDialog from 'src/components/MemberListDialog.vue'
 import { onCommandSubmit } from 'src/utils/cmdBus'
+import axios from 'axios'
+import { socket } from 'src/boot/socket'
 
 // pomocny typ spravy pre zoznam
 type Msg = { id: string; author: string; text: string; ts: number; system?: boolean }
@@ -107,9 +109,106 @@ const channelName = String(route.params.channelName)
 const channels = useChannelsStore()
 //const { run: runCmd } = useCommands({ channelName })
 
+const API = axios.create({
+  baseURL: 'http://localhost:3333/api',
+})
+
+const userId = Number(sessionStorage.getItem('userId') || '0')
+
 // reaktivne stavy pre input a spravy
 //const input = ref('')
 const messages = ref<Msg[]>([])
+
+
+type BackendAuthor = {
+  nickname?: string
+  nickName?: string
+  nick_name?: string
+  email?: string
+}
+
+type BackendMessage = {
+  id: number | string
+  body: string
+  createdAt: string
+  author?: BackendAuthor
+}
+
+type SocketBackendMessage = BackendMessage & {
+  channelId?: number | string
+  channel_id?: number | string
+}
+
+
+function mapBackendMsg(m: BackendMessage): Msg {
+  const nick =
+    m.author?.nickname ||
+    m.author?.nickName ||
+    m.author?.nick_name ||
+    m.author?.email ||
+    'unknown'
+
+  return {
+    id: String(m.id),
+    author: nick.startsWith('@') ? nick : `@${nick}`,
+    text: m.body,
+    ts: new Date(m.createdAt).getTime(),
+  }
+}
+
+
+const limit = 30
+const offset = ref(0)
+const hasMore = ref(true)
+const loadingOlder = ref(false)
+
+async function loadInitialMessages() {
+  if (!channel.value?.id) return
+  try {
+    const res = await API.get(`/channels/${channel.value.id}/messages`, {
+      headers: { 'X-User-Id': userId },
+      params: { limit, offset: 0 },
+    })
+
+    const batch = (res.data || []).map(mapBackendMsg).reverse()
+    messages.value = batch
+    offset.value = batch.length
+    hasMore.value = batch.length === limit
+    scrollToBottomCb()
+  } catch (e) {
+    console.error('loadInitialMessages failed', e)
+  }
+}
+
+async function loadOlderMessages() {
+  if (loadingOlder.value || !hasMore.value || !channel.value?.id) return
+  loadingOlder.value = true
+
+  try {
+    const res = await API.get(`/channels/${channel.value.id}/messages`, {
+      headers: { 'X-User-Id': userId },
+      params: { limit, offset: offset.value },
+    })
+
+    const batch = (res.data || []).map(mapBackendMsg).reverse()
+    if (batch.length === 0) {
+      hasMore.value = false
+      return
+    }
+
+    offset.value += batch.length
+    hasMore.value = batch.length === limit
+    messages.value.unshift(...batch)
+  } catch (e) {
+    console.error('loadOlderMessages failed', e)
+  } finally {
+    loadingOlder.value = false
+  }
+}
+
+
+
+
 
 function goBack() {
   void router.push('/channels')
@@ -126,24 +225,8 @@ function uuid() {
 
 // ref na scroll panel
 const pane = ref<HTMLElement | null>(null)
-const demoAuthors = ['@Adam Pasteka', '@David Babis' , '@Marek Mosko']
 
-function prependDemo(count = 20) {
-  const batch: Msg[] = []
-  for (let i = 0; i < count; i++) {
 
-    const author = demoAuthors[i % 3]!
-
-    let text =''
-    if(i % 3 === 0) {text = 'nazdar'}
-    if(i % 3 === 1) {text = 'Hello'}
-    if(i % 3 === 2) {text = 'World'}
-
-    batch.push({ id: uuid(), author, text, ts: Date.now(), system: false })
-  }
-  messages.value.unshift(...batch)
-
-}
 // scroll handler: ked si blizko vrchu, dotiahni dalsi batch a zachovaj poziciu
 async function onScroll() {
   const el = pane.value
@@ -151,28 +234,14 @@ async function onScroll() {
 
   if (el.scrollTop <= 40) {
     const oldH = el.scrollHeight
-    prependDemo(20)
+    await loadOlderMessages()
     await nextTick()
     el.scrollTop += (el.scrollHeight - oldH)
   }
 }
 
 
-// seed dat a zabezpecenie, aby bolo co scrollovat
-function seedDemo() {
-  prependDemo(20)
-  void nextTick(() => { void ensureScrollable() })
-}
 
-// doplni data, kym panel nema realny scroll
-async function ensureScrollable() {
-  const el = pane.value
-  if (!el) return
-  while (el.scrollHeight <= el.clientHeight + 1) {
-    prependDemo(20)
-    await nextTick()
-  }
-}
 
 
 //zabezpeci ze sa text zobrazi
@@ -214,8 +283,7 @@ function closePeek () {
 // zaregistruj sa na command bus
 let offBus: (() => void) | null = null
 onMounted(() => {
-  seedDemo()
-  scrollToBottomCb()
+  socket.on('messages:created', handleSocketMessage)
 
   offBus = onCommandSubmit((text) => {
     void runCmd(text)
@@ -225,6 +293,9 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  const id = channel.value?.id
+  if (id) socket.emit('leave:channel', { channelId: id })
+  socket.off('messages:created', handleSocketMessage)
   if (offBus) offBus()
 })
 
@@ -236,11 +307,62 @@ watch(() => route.params.channelName, (nv) => {
   }
 })
 
+watch(
+  () => channel.value?.id,
+  (id, oldId) => {
+    if (oldId) socket.emit('leave:channel', { channelId: oldId })
+    if (id) socket.emit('join:channel', { channelId: id })
+    if (id) void loadInitialMessages()
+  },
+  { immediate: true }
+)
+
+
 
 // callback: prida spravu dolu
-function pushMessageCb(msg: { author: string; text: string; ts?: number }) {
-  messages.value.push({ id: uuid(), author: msg.author, text: msg.text, ts: msg.ts ?? Date.now() })
+async function pushMessageCb(msg: { author: string; text: string; ts?: number }) {
+  if (!channel.value?.id || !userId) {
+    messages.value.push({ id: uuid(), author: msg.author, text: msg.text, ts: msg.ts ?? Date.now() })
+    return
+  }
+
+  try {
+    const res = await API.post(
+      `/channels/${channel.value.id}/messages`,
+      { content: msg.text },
+      { headers: { 'X-User-Id': userId, 'Content-Type': 'application/json' } }
+    )
+
+    const saved = mapBackendMsg(res.data.message)
+    if (!messages.value.some((m) => m.id === saved.id)) {
+      messages.value.push(saved)
+      scrollToBottomCb()
+    }
+
+  } catch (e) {
+    console.error(e)
+
+    messages.value.push({ id: uuid(), author: msg.author, text: msg.text, ts: msg.ts ?? Date.now() })
+    scrollToBottomCb()
+  }
 }
+
+function handleSocketMessage(bm: SocketBackendMessage) {
+  const chId = String(channel.value?.id ?? '')
+  const msgChId = String(bm.channelId ?? bm.channel_id ?? '')
+
+  // ignoruj správy z iných kanálov
+  if (!chId || msgChId !== chId) return
+
+  const mapped = mapBackendMsg(bm)
+
+  // deduplikácia (sender dostane svoju správu späť cez socket)
+  if (messages.value.some((m) => m.id === mapped.id)) return
+
+  messages.value.push(mapped)
+  scrollToBottomCb()
+}
+
 
 // callback: scroll na spodok
 function scrollToBottomCb() {
@@ -252,7 +374,7 @@ function scrollToBottomCb() {
 
 const { run: runCmd } = useCommands({
   channelName,
-  pushMessage: pushMessageCb,
+  pushMessage: (msg) => { void pushMessageCb(msg) },
   onAfterNormalMessage: scrollToBottomCb,
   router,
 })

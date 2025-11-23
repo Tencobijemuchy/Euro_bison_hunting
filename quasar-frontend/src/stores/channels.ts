@@ -19,7 +19,27 @@ export type Channel = {
   lastActivityAt: string | null
   topInvitedFor: Record<string, string>
   status: string
+  messages?: ChatMessage[]
+
 }
+
+export type ChatAuthor = {
+  nickName?: string
+  nickname?: string
+  nick_name?: string
+  email?: string
+}
+
+export type ChatMessage = {
+  id: string | number
+  channelId: number | string
+  body?: string
+  text?: string
+  createdAt?: string
+  author?: ChatAuthor
+  mentionedUserId?: number | string | null
+}
+
 
 // mapa draftov: channel -> nick -> text draftu (lokalne)
 type DraftMap = Record<string, Record<string, string>>
@@ -160,6 +180,31 @@ export const useChannelsStore = defineStore('channels', {
       }
     },
 
+    // Kick user (vote alebo permaban)
+    async kickUser(channelName: string, kickerNickname: string, targetNickname: string) {
+      try {
+        const response = await api.post(`/channels/${channelName}/kick`, {
+          kickerNickname,
+          targetNickname,
+        })
+
+        // refreshni kanály aby si videl banned list atď.
+        await this.loadChannels()
+
+        return response.data as {
+          message: string
+          permanent: boolean
+          kickCount: number
+          remaining?: number
+        }
+      } catch (error) {
+        const message = error instanceof AxiosError
+          ? error.response?.data?.message || 'Failed to kick'
+          : 'Failed to kick'
+        throw new Error(message)
+      }
+    },
+
     // Revoke - odoberie usera alebo zrusi inv
     async revokeUser(channelName: string, revokerNickname: string, targetNickname: string) {
       try {
@@ -211,5 +256,37 @@ export const useChannelsStore = defineStore('channels', {
       if (!this.typing[channelName]) this.typing[channelName] = {}
       this.typing[channelName][nickname] = Date.now()
     },
+
+    addOrUpdateChannel(ch: Channel) {
+      const idx = this.channels.findIndex(c => c.channelName === ch.channelName || c.id === ch.id)
+
+      if (idx !== -1) {
+        this.channels[idx] = { ...this.channels[idx], ...ch }
+      } else {
+        this.channels.unshift(ch)
+      }
+    },
+
+    markInvited(channelName: string, invitee: string, createdAt?: string) {
+      const c = this.channels.find(c => c.channelName === channelName)
+      if (!c) return
+
+      if (!c.topInvitedFor) c.topInvitedFor = {}
+      c.topInvitedFor[invitee] = createdAt ?? new Date().toISOString()
+    },
+
+    addIncomingMessage(msg: ChatMessage) {
+      const ch = this.channels.find(c => c.id === msg.channelId)
+      if (!ch) return
+
+      if (!ch.messages) ch.messages = []
+
+      const exists = ch.messages.some((m: ChatMessage) => m.id === msg.id)
+      if (!exists) {
+        ch.messages.push(msg)
+      }
+    },
+
+
   },
 })

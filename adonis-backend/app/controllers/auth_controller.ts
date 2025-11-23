@@ -6,13 +6,22 @@ export default class AuthController {
   // POST /api/auth/register
   async register({ request, response }: HttpContext) {
     try {
-      const payload = request.only(['firstName', 'lastName', 'nickname', 'email', 'password'])
+      const payload = request.only([
+        'firstName',
+        'lastName',
+        'nickName',
+        'nickname',
+        'email',
+        'password',
+      ])
+
+      const nickname = (payload.nickname ?? payload.nickName)?.trim()
 
       // Validacia
       if (
         !payload.firstName ||
         !payload.lastName ||
-        !payload.nickname ||
+        !nickname ||
         !payload.email ||
         !payload.password
       ) {
@@ -25,28 +34,27 @@ export default class AuthController {
         return response.badRequest({ message: 'Email already exists' })
       }
 
-      // check nic existing
-      const existingNick = await User.query().where('nick_name', payload.nickname).first()
+      // check nickname existing
+      const existingNick = await User.query().where('nick_name', nickname).first()
       if (existingNick) {
         return response.badRequest({ message: 'Nickname already exists' })
       }
 
-      // Vytvor usera
       const user = await User.create({
         firstName: payload.firstName,
         lastName: payload.lastName,
-        nickName: payload.nickname,
+        nickName: nickname,
         email: payload.email,
         passwordHash: await hash.make(payload.password),
         status: 'online',
       })
 
-      // return params
       return response.created({
         id: user.id,
         firstName: user.firstName,
         lastName: user.lastName,
         nickname: user.nickName,
+        nickName: user.nickName,
         email: user.email,
       })
     } catch (error) {
@@ -80,14 +88,13 @@ export default class AuthController {
         return response.unauthorized({ message: 'Invalid credentials' })
       }
 
-
-
       // return pub params
       return response.ok({
         id: user.id,
         firstName: user.firstName,
         lastName: user.lastName,
         nickname: user.nickName,
+        nickName: user.nickName,
         email: user.email,
         status: user.status,
       })
@@ -136,7 +143,7 @@ export default class AuthController {
         id: user.id,
         firstName: user.firstName,
         lastName: user.lastName,
-        nickname: user.nickName,
+        nickName: user.nickName,
         email: user.email,
         status: user.status,
       })
@@ -159,7 +166,6 @@ export default class AuthController {
       if (!user) {
         return response.notFound({ message: 'User not found' })
       }
-
 
       if (status && ['online', 'dnd', 'offline'].includes(status)) {
         user.status = status

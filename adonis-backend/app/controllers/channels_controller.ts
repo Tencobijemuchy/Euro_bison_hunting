@@ -4,10 +4,9 @@ import User from '#models/user'
 import Invitation from '#models/invitation'
 import { DateTime } from 'luxon'
 import Database from '@adonisjs/lucid/services/db'
-
+import { io } from '#start/socket'
 
 export default class ChannelsController {
-
   //GET /api/channels
 
   async index({ response }: HttpContext) {
@@ -17,17 +16,15 @@ export default class ChannelsController {
       .orderBy('created_at', 'desc')
 
     // Načítaj všetky pending invitations
-    const invitations = await Invitation.query()
-      .where('status', 'pending')
-      .preload('invitee')
+    const invitations = await Invitation.query().where('status', 'pending').preload('invitee')
 
     // Format pre frontend
     const formatted = channels.map((ch) => {
       const topInvitedFor: Record<string, string> = {}
 
       invitations
-        .filter(inv => inv.channelId === ch.id)
-        .forEach(inv => {
+        .filter((inv) => inv.channelId === ch.id)
+        .forEach((inv) => {
           if (inv.invitee?.nickName) {
             topInvitedFor[inv.invitee.nickName] = inv.createdAt.toISO() ?? ''
           }
@@ -53,10 +50,9 @@ export default class ChannelsController {
     return response.json(formatted)
   }
 
-
   //GET /api/channels/:name
 
-  async show({ params, response }: HttpContext) {
+  async show({ params, request, response }: HttpContext) {
     const channel = await Channel.query()
       .whereRaw('LOWER(channel_name) = LOWER(?)', [params.name])
       .preload('owner')
@@ -67,6 +63,26 @@ export default class ChannelsController {
       return response.notFound({ message: 'Channel not found' })
     }
 
+    //BAN CHECK: bannnutý user nesmie dostať members (/list)
+    const userIdHeader = request.header('X-User-Id')
+    if (!userIdHeader) {
+      return response.unauthorized({ message: 'Missing X-User-Id header' })
+    }
+
+    const requesterId = Number(userIdHeader)
+
+    const requesterPivot = await Database.from('channel_user')
+      .where({ channel_id: channel.id, user_id: requesterId })
+      .first()
+
+    if (!requesterPivot) {
+      return response.forbidden({ message: 'Not a channel member' })
+    }
+
+    if (requesterPivot.is_banned) {
+      return response.forbidden({ message: 'You are banned from this channel' })
+    }
+
     // nacita pending ivnv pre tento kanal
     const invitations = await Invitation.query()
       .where('channel_id', channel.id)
@@ -74,7 +90,7 @@ export default class ChannelsController {
       .preload('invitee')
 
     const topInvitedFor: Record<string, string> = {}
-    invitations.forEach(inv => {
+    invitations.forEach((inv) => {
       if (inv.invitee?.nickName) {
         topInvitedFor[inv.invitee.nickName] = inv.createdAt.toISO() ?? ''
       }
@@ -96,7 +112,6 @@ export default class ChannelsController {
       topInvitedFor,
     })
   }
-
 
   //POST /api/channels/join
 
@@ -125,7 +140,15 @@ export default class ChannelsController {
       .first()
 
     if (channel) {
-      // Kanal existuje - pridaj clena
+      // ak je user v pivote a je banned, nemoze join
+      const pivot = await Database.from('channel_user')
+        .where({ channel_id: channel.id, user_id: user.id })
+        .first()
+
+      if (pivot?.is_banned) {
+        return response.forbidden({ message: 'You are banned from this channel' })
+      }
+
       const isMember = channel.members.some((m) => m.id === user.id)
 
       if (!isMember) {
@@ -147,7 +170,7 @@ export default class ChannelsController {
         .preload('invitee')
 
       const topInvitedFor: Record<string, string> = {}
-      invitations.forEach(inv => {
+      invitations.forEach((inv) => {
         if (inv.invitee?.nickName) {
           topInvitedFor[inv.invitee.nickName] = inv.createdAt.toISO() ?? ''
         }
@@ -188,30 +211,37 @@ export default class ChannelsController {
     await channel.load('owner')
     await channel.load('members')
 
+    const payload = {
+      id: channel.id,
+      channelName: channel.channelName,
+      isPrivate: channel.isPrivate,
+      ownerNickname: channel.owner.nickName,
+      ownerId: channel.ownerId,
+      status: channel.status,
+      lastActivityAt: channel.lastActivityAt?.toISO() ?? null,
+      createdAt: channel.createdAt.toISO() ?? '',
+      members: channel.members.map((m) => m.nickName),
+      banned: [],
+      kickVotes: {},
+      topInvitedFor: {},
+    }
+
+    io.emit('channels:created', payload)
+
     return response.json({
       created: true,
-      channel: {
-        id: channel.id,
-        channelName: channel.channelName,
-        isPrivate: channel.isPrivate,
-        ownerNickname: channel.owner.nickName,
-        ownerId: channel.ownerId,
-        status: channel.status,
-        lastActivityAt: channel.lastActivityAt?.toISO(),
-        createdAt: channel.createdAt.toISO(),
-        updatedAt: channel.updatedAt.toISO(),
-        members: channel.members.map((m) => m.nickName),
-        banned: [],
-        kickVotes: {},
-        topInvitedFor: {},
-      },
+      channel: payload,
     })
+
   }
 
   // POST /api/channels/:channelName/invite - inv usera
   async invite({ params, request, response }: HttpContext) {
     const { channelName } = params
-    const { inviterNickname, inviteeNickname } = request.only(['inviterNickname', 'inviteeNickname'])
+    const { inviterNickname, inviteeNickname } = request.only([
+      'inviterNickname',
+      'inviteeNickname',
+    ])
 
     if (!inviterNickname || !inviteeNickname) {
       return response.badRequest({ message: 'Both inviter and invitee nicknames required' })
@@ -236,7 +266,7 @@ export default class ChannelsController {
       return response.notFound({ message: 'User not found' })
     }
 
-    const isInviterMember = channel.members.some(m => m.id === inviter.id)
+    const isInviterMember = channel.members.some((m) => m.id === inviter.id)
     const isInviterOwner = channel.ownerId === inviter.id
 
     if (channel.isPrivate) {
@@ -249,7 +279,37 @@ export default class ChannelsController {
       }
     }
 
-    const isInviteeAlreadyMember = channel.members.some(m => m.id === invitee.id)
+    // ak je invitee banned, owner ho vie unban cez /invite
+    const bannedPivot = await Database.from('channel_user')
+      .where({ channel_id: channel.id, user_id: invitee.id })
+      .first()
+
+    if (bannedPivot?.is_banned) {
+      if (!isInviterOwner) {
+        return response.forbidden({ message: 'Only owner can unban a user' })
+      }
+
+      await Database.from('channel_user')
+        .where({ channel_id: channel.id, user_id: invitee.id })
+        .update({
+          is_banned: false,
+          kick_count: 0,
+          updated_at: DateTime.utc().toFormat('yyyy-LL-dd HH:mm:ss'),
+        })
+
+      await Database.from('kick_votes')
+        .where({ channel_id: channel.id, target_user_id: invitee.id })
+        .delete()
+
+      return response.ok({
+        message: `${inviteeNickname} unbanned and re-invited to ${channelName}`,
+        channelName: channel.channelName,
+        invitee: inviteeNickname,
+        unbanned: true,
+      })
+    }
+
+    const isInviteeAlreadyMember = channel.members.some((m) => m.id === invitee.id)
     if (isInviteeAlreadyMember) {
       return response.badRequest({ message: `${inviteeNickname} is already a member` })
     }
@@ -272,6 +332,14 @@ export default class ChannelsController {
       status: 'pending',
     })
 
+    // realtime pozvánka len pre invitee
+    io.to(`user:${invitee.id}`).emit('channels:invited', {
+      channelName: channel.channelName,
+      invitee: invitee.nickName,
+      createdAt: DateTime.utc().toISO(),
+    })
+
+
     return response.ok({
       message: `${inviteeNickname} invited to ${channelName}`,
       channelName: channel.channelName,
@@ -287,7 +355,6 @@ export default class ChannelsController {
     if (!revokerNickname || !targetNickname) {
       return response.badRequest({ message: 'Both revoker and target nicknames required' })
     }
-
 
     const channel = await Channel.query()
       .whereRaw('LOWER(channel_name) = LOWER(?)', [channelName])
@@ -308,14 +375,16 @@ export default class ChannelsController {
     }
 
     const isRevokerOwner = channel.ownerId === revoker.id
-    const isSelfRevoke = revoker.id === target.id  // Odchádza sám
+    const isSelfRevoke = revoker.id === target.id // Odchádza sám
 
     if (channel.isPrivate) {
       if (!isRevokerOwner && !isSelfRevoke) {
-        return response.forbidden({ message: 'Only channel owner can revoke others in private channel' })
+        return response.forbidden({
+          message: 'Only channel owner can revoke others in private channel',
+        })
       }
     } else {
-      const isRevokerMember = channel.members.some(m => m.id === revoker.id)
+      const isRevokerMember = channel.members.some((m) => m.id === revoker.id)
       if (!isRevokerOwner && !isRevokerMember && !isSelfRevoke) {
         return response.forbidden({ message: 'Only channel owner or members can revoke' })
       }
@@ -335,7 +404,7 @@ export default class ChannelsController {
       invitationCancelled = true
     }
 
-    const isMember = channel.members.some(m => m.id === target.id)
+    const isMember = channel.members.some((m) => m.id === target.id)
 
     if (isMember) {
       await channel.related('members').detach([target.id])
@@ -344,7 +413,7 @@ export default class ChannelsController {
 
     if (!removed && !invitationCancelled) {
       return response.notFound({
-        message: `${targetNickname} is not a member and has no pending invitation`
+        message: `${targetNickname} is not a member and has no pending invitation`,
       })
     }
 
@@ -358,6 +427,162 @@ export default class ChannelsController {
       target: targetNickname,
       removed,
       invitationCancelled,
+    })
+  }
+
+  // POST /api/channels/:channelName/kick
+  async kick({ params, request, response }: HttpContext) {
+    const { channelName } = params
+    const { kickerNickname, targetNickname } = request.only(['kickerNickname', 'targetNickname'])
+
+    if (!kickerNickname || !targetNickname) {
+      return response.badRequest({ message: 'Both kicker and target nicknames required' })
+    }
+
+    const channel = await Channel.query()
+      .whereRaw('LOWER(channel_name) = LOWER(?)', [channelName])
+      .preload('owner')
+      .preload('members')
+      .first()
+
+    if (!channel) {
+      return response.notFound({ message: 'Channel not found' })
+    }
+
+    const kicker = await User.findBy('nickName', kickerNickname)
+    const target = await User.findBy('nickName', targetNickname)
+
+    if (!kicker || !target) {
+      return response.notFound({ message: 'User not found' })
+    }
+
+    const isKickerOwner = channel.ownerId === kicker.id
+    const isKickerMember = channel.members.some((m) => m.id === kicker.id)
+    const isTargetMember = channel.members.some((m) => m.id === target.id)
+
+    if (!isKickerOwner && !isKickerMember) {
+      return response.forbidden({ message: 'You are not a member of this channel' })
+    }
+    if (!isTargetMember) {
+      return response.badRequest({ message: `${targetNickname} is not a member of this channel` })
+    }
+    if (target.id === channel.ownerId) {
+      return response.forbidden({ message: 'Owner cannot be kicked' })
+    }
+
+    const pivot = await Database.from('channel_user')
+      .where({ channel_id: channel.id, user_id: target.id })
+      .first()
+
+    if (pivot?.is_banned) {
+      return response.badRequest({ message: `${targetNickname} is already banned` })
+    }
+
+    // helper na realtime notify pre targeta
+    const notifyKick = (permanent = true) => {
+      io.to(`user:${target.id}`).emit('channels:kicked', {
+        channelId: channel.id,
+        channelName: channel.channelName,
+        message: `Bol si kicknutý z #${channel.channelName}`,
+        permanent,
+      })
+    }
+
+
+    // PRIVATE: len owner a hned permanent ban
+    if (channel.isPrivate) {
+      if (!isKickerOwner) {
+        return response.forbidden({ message: 'Only owner can kick in private channel' })
+      }
+
+      await Database.from('channel_user')
+        .where({ channel_id: channel.id, user_id: target.id })
+        .update({
+          is_banned: true,
+          kick_count: 3,
+          updated_at: DateTime.utc().toFormat('yyyy-LL-dd HH:mm:ss'),
+        })
+
+      notifyKick(true)
+
+      return response.ok({
+        message: `${targetNickname} permanently banned from ${channel.channelName}`,
+        permanent: true,
+        kickCount: 3,
+      })
+    }
+
+    // PUBLIC: owner = instant permaban
+    if (isKickerOwner) {
+      await Database.from('channel_user')
+        .where({ channel_id: channel.id, user_id: target.id })
+        .update({
+          is_banned: true,
+          kick_count: 3,
+          updated_at: DateTime.utc().toFormat('yyyy-LL-dd HH:mm:ss'),
+        })
+
+      notifyKick(true)
+
+      return response.ok({
+        message: `${targetNickname} permanently banned by owner`,
+        permanent: true,
+        kickCount: 3,
+      })
+    }
+
+    // PUBLIC: normal member vote (musí byť unikátne)
+    const existingVote = await Database.from('kick_votes')
+      .where({
+        channel_id: channel.id,
+        target_user_id: target.id,
+        voter_user_id: kicker.id,
+      })
+      .first()
+
+    if (existingVote) {
+      return response.badRequest({ message: 'You already voted to kick this user' })
+    }
+
+    await Database.table('kick_votes').insert({
+      channel_id: channel.id,
+      target_user_id: target.id,
+      voter_user_id: kicker.id,
+      created_at: DateTime.utc().toFormat('yyyy-LL-dd HH:mm:ss'),
+      updated_at: DateTime.utc().toFormat('yyyy-LL-dd HH:mm:ss'),
+    })
+
+    const [{ total }] = await Database.from('kick_votes')
+      .where({ channel_id: channel.id, target_user_id: target.id })
+      .count('* as total')
+
+    const kickCount = Number(total)
+
+    await Database.from('channel_user')
+      .where({ channel_id: channel.id, user_id: target.id })
+      .update({ kick_count: kickCount, updated_at: DateTime.utc().toFormat('yyyy-LL-dd HH:mm:ss'),
+      })
+
+    if (kickCount >= 3) {
+      await Database.from('channel_user')
+        .where({ channel_id: channel.id, user_id: target.id })
+        .update({ is_banned: true, updated_at: DateTime.utc().toFormat('yyyy-LL-dd HH:mm:ss'),
+        })
+
+      notifyKick(true)
+
+      return response.ok({
+        message: `${targetNickname} permanently banned (3 kicks reached)`,
+        permanent: true,
+        kickCount,
+      })
+    }
+
+    return response.ok({
+      message: `Kick vote recorded on ${targetNickname} (${kickCount}/3)`,
+      permanent: false,
+      kickCount,
+      remaining: 3 - kickCount,
     })
   }
 
