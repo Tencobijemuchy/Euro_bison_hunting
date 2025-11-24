@@ -47,6 +47,7 @@ export default class AuthController {
         email: payload.email,
         passwordHash: await hash.make(payload.password),
         status: 'online',
+        notifications: 'all',
       })
 
       return response.created({
@@ -56,6 +57,8 @@ export default class AuthController {
         nickname: user.nickName,
         nickName: user.nickName,
         email: user.email,
+        status: user.status,
+        notifications: user.notifications,
       })
     } catch (error) {
       console.error('Registration error:', error)
@@ -97,6 +100,7 @@ export default class AuthController {
         nickName: user.nickName,
         email: user.email,
         status: user.status,
+        notifications: user.notifications,
       })
     } catch (error) {
       console.error('Login error:', error)
@@ -146,12 +150,14 @@ export default class AuthController {
         nickName: user.nickName,
         email: user.email,
         status: user.status,
+        notifications: user.notifications,
       })
     } catch (error) {
       console.error('Me error:', error)
       return response.internalServerError({ message: 'Failed to fetch user' })
     }
   }
+
   // PATCH /api/auth/update-settings
   async updateSettings({ request, response }: HttpContext) {
     try {

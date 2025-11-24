@@ -132,7 +132,6 @@ export const useChannelsStore = defineStore('channels', {
       if (!byNick) throw new Error('User nickname required.')
 
       try {
-        // Zavolaj AdonisJS backend
         const response = await api.post('/channels/join', {
           nickname: byNick,
           channelName: nameRaw,
@@ -154,7 +153,14 @@ export const useChannelsStore = defineStore('channels', {
 
         return { created, channel }
       } catch (err: unknown) {
-        const error = err as { response?: { data?: { message?: string } } }
+        const error = err as { response?: { status?: number; data?: { message?: string } } }
+
+        if (error.response?.status === 403) {
+          const message = error.response?.data?.message || `You are banned from #${nameRaw}`
+          this.error = message
+          throw new Error(message)
+        }
+
         this.error = error.response?.data?.message || 'Failed to join channel'
         console.error('Error joining channel:', err)
         throw err
@@ -286,6 +292,23 @@ export const useChannelsStore = defineStore('channels', {
         ch.messages.push(msg)
       }
     },
+    removeMessage(channelId: number | string, messageId: number | string) {
+      const channel = this.channels.find((ch) => Number(ch.id) === Number(channelId))
+      if (!channel) return
+
+      // Ak máš messages ako array priamo v channel objekte:
+      if (channel.messages) {
+        channel.messages = channel.messages.filter((msg) => Number(msg.id) !== Number(messageId))
+      }
+
+
+    }
+
+
+
+
+
+
 
 
   },

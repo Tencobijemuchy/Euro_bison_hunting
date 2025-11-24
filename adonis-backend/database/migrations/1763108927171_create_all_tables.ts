@@ -17,7 +17,7 @@ export default class extends BaseSchema {
       table.string('email', 255).notNullable().unique()
       table.string('password_hash', 255).notNullable()
       table.enum('status', ['online', 'dnd', 'offline'])
-      table.enum('notifications', ['All', 'Mentions only', 'Off'])
+      table.enum('notifications', ['all', 'mentions', 'off']).defaultTo('all')
       table.timestamp('created_at', { useTz: true }).defaultTo(this.now())
       table.timestamp('updated_at', { useTz: true }).defaultTo(this.now())
     })
@@ -79,6 +79,15 @@ export default class extends BaseSchema {
       table.timestamp('updated_at', { useTz: true }).defaultTo(this.now())
     })
 
+    // 7. Table pre kick votes - ✅ PRIDANÉ
+    this.schema.createTable('kick_votes', (table) => {
+      table.increments('id').primary()
+      table.integer('channel_id').unsigned().notNullable()
+      table.integer('voter_user_id').unsigned().notNullable()
+      table.integer('target_user_id').unsigned().notNullable()
+      table.timestamp('created_at', { useTz: true }).defaultTo(this.now())
+    })
+
     // ========================================
     // faza 2: Pridanie foreign keys a constraints
     // ========================================
@@ -115,6 +124,15 @@ export default class extends BaseSchema {
       table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE')
       table.foreign('channel_id').references('id').inTable('channels').onDelete('CASCADE')
       table.unique(['user_id', 'channel_id'])
+    })
+
+    // Foreign keys a unique constraint pre kick_votes - ✅ PRIDANÉ
+    this.schema.alterTable('kick_votes', (table) => {
+      table.foreign('channel_id').references('id').inTable('channels').onDelete('CASCADE')
+      table.foreign('voter_user_id').references('id').inTable('users').onDelete('CASCADE')
+      table.foreign('target_user_id').references('id').inTable('users').onDelete('CASCADE')
+      // Každý voter môže mať len 1 vote na target v danom channeli
+      table.unique(['channel_id', 'voter_user_id', 'target_user_id'])
     })
   }
 }

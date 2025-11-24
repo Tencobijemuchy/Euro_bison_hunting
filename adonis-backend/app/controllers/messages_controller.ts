@@ -5,7 +5,6 @@ import User from '#models/user'
 import Database from '@adonisjs/lucid/services/db'
 import { io } from '#start/socket'
 
-
 export default class MessagesController {
   // GET /api/channels/:id/messages?offset=0&limit=30
   public async index({ params, request, response }: HttpContext) {
@@ -38,7 +37,6 @@ export default class MessagesController {
     if (pivot.is_banned) {
       return response.forbidden({ error: 'You are banned from this channel' })
     }
-
 
     const messages = await Message.query()
       .where('channel_id', channelId)
@@ -85,7 +83,6 @@ export default class MessagesController {
       return response.forbidden({ error: 'You are banned from this channel' })
     }
 
-
     // mention detection
     let mentionedUserId: number | undefined = undefined
     const mentionMatch = content.match(/@([A-Za-z0-9_]+)/)
@@ -108,9 +105,83 @@ export default class MessagesController {
     const message = await Message.create(payload)
     await message.load('author')
 
-    io.emit('messages:created', message)
+    const messageData = {
+      id: message.id,
+      channelId: message.channelId,
+      authorId: message.authorId,
+      authorNickname: message.author.nickName,
+      body: message.body,
+      mentionedUserId: message.mentionedUserId,
+      createdAt: message.createdAt.toISO(),
+    }
 
-    return { success: true, message }
+    // ✅ Emit do channel roomky
+    io.to(`channel:${channelId}`).emit('message:new', messageData)
 
+    // ✅ Poslať notifikácie používateľom ktorí majú správne nastavenia
+    await this.sendNotifications(channel, message, user)
+
+    return { success: true, message: messageData }
+  }
+
+  // ✅ Helper: Odoslanie notifikácií na základe DB nastavení
+  private async sendNotifications(channel: Channel, message: Message, author: User) {
+    try {
+      // Načítaj všetkých členov kanála (okrem autora správy)
+      await channel.load('members')
+      const members = channel.members.filter((m) => m.id !== author.id)
+
+      console.log(`Sending notifications for channel ${channel.id}, members:`, members.length)
+
+      for (const member of members) {
+        // Skontroluj notifikačné nastavenia z DB
+        const notificationMode = (member.notifications || 'all').toLowerCase() // ✅ toLowerCase()
+
+        console.log(`User ${member.id} notification mode: ${member.notifications} -> ${notificationMode}`)
+
+        let shouldNotify = false
+
+        switch (notificationMode) {
+          case 'all':
+            shouldNotify = true
+            break
+
+          case 'mentions':
+          case 'mentions only': // ✅ Pridaná podpora pre 'Mentions only'
+            shouldNotify = message.mentionedUserId === member.id
+            break
+
+          case 'off':
+            shouldNotify = false
+            break
+
+          default:
+            shouldNotify = false
+        }
+
+        console.log(`User ${member.id} shouldNotify: ${shouldNotify}`) // ✅ DEBUG
+
+        if (shouldNotify) {
+          console.log(
+            `Sending notification to user ${member.id} for message in channel ${channel.channelName}`
+          )
+
+          // Pošli notifikáciu do user roomky
+          io.to(`user:${member.id}`).emit('notification:new', {
+            type: 'message',
+            messageId: message.id,
+            channelId: channel.id,
+            channelName: channel.channelName,
+            authorId: author.id,
+            authorNickname: author.nickName,
+            body: message.body,
+            mentionedUserId: message.mentionedUserId,
+            timestamp: message.createdAt.toISO(),
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error sending notifications:', error)
+    }
   }
 }

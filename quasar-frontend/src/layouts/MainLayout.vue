@@ -63,9 +63,9 @@
                 <q-item><q-item-section><q-radio v-model="app.status" val="offline" label="Offline" /></q-item-section></q-item>
                 <q-separator />
                 <q-item><q-item-section class="text-caption">Notifications</q-item-section></q-item>
-                <q-item><q-item-section><q-radio v-model="app.notifMode" val="all" label="All" /></q-item-section></q-item>
-                <q-item><q-item-section><q-radio v-model="app.notifMode" val="mentionsOnly" label="Mentions only" /></q-item-section></q-item>
-                <q-item><q-item-section><q-radio v-model="app.notifMode" val="off" label="Off" /></q-item-section></q-item>
+                <q-item><q-item-section><q-radio v-model="app.notifications" val="all" label="All" /></q-item-section></q-item>
+                <q-item><q-item-section><q-radio v-model="app.notifications" val="mentions" label="Mentions only" /></q-item-section></q-item>
+                <q-item><q-item-section><q-radio v-model="app.notifications" val="off" label="Off" /></q-item-section></q-item>
               </q-list>
             </q-menu>
           </q-btn>
@@ -133,14 +133,19 @@ import { useUserStore } from 'src/stores/user'
 import { useAppStore } from 'src/stores/app'
 import GlobalCommandBar from 'components/GlobalCommandBar.vue'
 import { emitCommandSubmit } from 'src/utils/cmdBus'
+import { useChannelsStore } from 'src/stores/channels'
 
 const app = useAppStore()
 const user = useUserStore()
 const command = ref('')
+const channels = useChannelsStore()
 
-onMounted(() => {
+onMounted(async () => {
   user.loadSession()
   app.init()
+  if (user.isLogged) {
+    await channels.loadChannels()
+  }
 })
 
 
@@ -279,4 +284,3 @@ html, body, #q-app {
   z-index: 1;
 }
 </style>
-

@@ -1,8 +1,8 @@
-
 import { Notify } from 'quasar'
 import { useChannelsStore } from 'src/stores/channels'
 import { useUserStore } from 'src/stores/user'
 import type { Router } from 'vue-router'
+import { api } from 'src/boot/axios' // ✅ PRIDANÉ
 
 // typ callbacku pre pridanie spravy do ui
 type PushMsg = (msg: { author: string; text: string; ts?: number }) => void
@@ -21,9 +21,6 @@ type Ctx = {
 export function useCommands(context: Ctx) {
   const channels = useChannelsStore()
   const user = useUserStore()
-
-  // fallback pre pushMessage ak nepride z kontextu
-  const push = context.pushMessage ?? (() => {})
 
   //spracovanie vstupneho textu - ZMENA: async
   async function run(raw: string) {
@@ -307,9 +304,20 @@ export function useCommands(context: Ctx) {
       await channels.joinChannel(me, ch.channelName)
     }
 
-
-    push({ author: me, text: txt, ts: Date.now() })
-    context.onAfterNormalMessage?.()
+    try {
+      await api.post(`/channels/${ch.id}/messages`,
+        { content: txt },
+        {
+          headers: {
+            'X-User-Id': user.me?.id?.toString() || ''
+          }
+        }
+      )
+      context.onAfterNormalMessage?.()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to send message'
+      Notify.create({ type: 'negative', message: msg })
+    }
     return false
   }
 

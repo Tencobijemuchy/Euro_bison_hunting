@@ -283,8 +283,7 @@ function closePeek () {
 // zaregistruj sa na command bus
 let offBus: (() => void) | null = null
 onMounted(() => {
-  socket.on('messages:created', handleSocketMessage)
-
+  socket.on('message:new', handleSocketMessage)
   offBus = onCommandSubmit((text) => {
     void runCmd(text)
   })
@@ -295,7 +294,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   const id = channel.value?.id
   if (id) socket.emit('leave:channel', { channelId: id })
-  socket.off('messages:created', handleSocketMessage)
+  socket.off('message:new', handleSocketMessage)
   if (offBus) offBus()
 })
 
@@ -309,10 +308,23 @@ watch(() => route.params.channelName, (nv) => {
 
 watch(
   () => channel.value?.id,
-  (id, oldId) => {
-    if (oldId) socket.emit('leave:channel', { channelId: oldId })
-    if (id) socket.emit('join:channel', { channelId: id })
-    if (id) void loadInitialMessages()
+  async (id, oldId) => {
+    console.log('Channel changed:', { id, oldId, channel: channel.value })
+
+    if (oldId) {
+      socket.emit('leave:channel', { channelId: oldId })
+    }
+    if (id) {
+      socket.emit('join:channel', { channelId: id })
+      await new Promise(resolve => setTimeout(resolve, 100))
+      await loadInitialMessages()
+
+      console.log('After loadInitialMessages:', {
+        channelId: id,
+        ownerNickname: channel.value?.ownerNickname,
+        messagesCount: messages.value.length
+      })
+    }
   },
   { immediate: true }
 )
@@ -347,6 +359,14 @@ async function pushMessageCb(msg: { author: string; text: string; ts?: number })
   }
 }
 
+// callback: scroll na spodok
+function scrollToBottomCb() {
+  void nextTick(() => {
+    const el = pane.value
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'instant' as ScrollBehavior })
+  })
+}
+
 function handleSocketMessage(bm: SocketBackendMessage) {
   const chId = String(channel.value?.id ?? '')
   const msgChId = String(bm.channelId ?? bm.channel_id ?? '')
@@ -361,15 +381,6 @@ function handleSocketMessage(bm: SocketBackendMessage) {
 
   messages.value.push(mapped)
   scrollToBottomCb()
-}
-
-
-// callback: scroll na spodok
-function scrollToBottomCb() {
-  void nextTick(() => {
-    const el = pane.value
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'instant' as ScrollBehavior })
-  })
 }
 
 const { run: runCmd } = useCommands({
