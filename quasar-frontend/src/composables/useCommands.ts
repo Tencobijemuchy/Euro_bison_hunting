@@ -2,7 +2,7 @@ import { Notify } from 'quasar'
 import { useChannelsStore } from 'src/stores/channels'
 import { useUserStore } from 'src/stores/user'
 import type { Router } from 'vue-router'
-import { api } from 'src/boot/axios' // ✅ PRIDANÉ
+import { api } from 'src/boot/axios'
 
 // typ callbacku pre pridanie spravy do ui
 type PushMsg = (msg: { author: string; text: string; ts?: number }) => void

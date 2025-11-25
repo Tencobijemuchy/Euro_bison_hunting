@@ -115,16 +115,16 @@ export default class MessagesController {
       createdAt: message.createdAt.toISO(),
     }
 
-    // ✅ Emit do channel roomky
+
     io.to(`channel:${channelId}`).emit('message:new', messageData)
 
-    // ✅ Poslať notifikácie používateľom ktorí majú správne nastavenia
+
     await this.sendNotifications(channel, message, user)
 
     return { success: true, message: messageData }
   }
 
-  // ✅ Helper: Odoslanie notifikácií na základe DB nastavení
+
   private async sendNotifications(channel: Channel, message: Message, author: User) {
     try {
       // Načítaj všetkých členov kanála (okrem autora správy)
@@ -135,7 +135,7 @@ export default class MessagesController {
 
       for (const member of members) {
         // Skontroluj notifikačné nastavenia z DB
-        const notificationMode = (member.notifications || 'all').toLowerCase() // ✅ toLowerCase()
+        const notificationMode = (member.notifications || 'all').toLowerCase()
 
         console.log(`User ${member.id} notification mode: ${member.notifications} -> ${notificationMode}`)
 
@@ -147,7 +147,7 @@ export default class MessagesController {
             break
 
           case 'mentions':
-          case 'mentions only': // ✅ Pridaná podpora pre 'Mentions only'
+          case 'mentions only':
             shouldNotify = message.mentionedUserId === member.id
             break
 
@@ -159,7 +159,7 @@ export default class MessagesController {
             shouldNotify = false
         }
 
-        console.log(`User ${member.id} shouldNotify: ${shouldNotify}`) // ✅ DEBUG
+        console.log(`User ${member.id} shouldNotify: ${shouldNotify}`)
 
         if (shouldNotify) {
           console.log(

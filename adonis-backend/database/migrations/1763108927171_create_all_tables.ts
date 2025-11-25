@@ -79,13 +79,15 @@ export default class extends BaseSchema {
       table.timestamp('updated_at', { useTz: true }).defaultTo(this.now())
     })
 
-    // 7. Table pre kick votes - ✅ PRIDANÉ
+    // 7. Table pre kick votes
     this.schema.createTable('kick_votes', (table) => {
       table.increments('id').primary()
       table.integer('channel_id').unsigned().notNullable()
       table.integer('voter_user_id').unsigned().notNullable()
       table.integer('target_user_id').unsigned().notNullable()
       table.timestamp('created_at', { useTz: true }).defaultTo(this.now())
+      table.timestamp('updated_at', { useTz: true }).defaultTo(this.now())
+
     })
 
     // ========================================
@@ -126,7 +128,7 @@ export default class extends BaseSchema {
       table.unique(['user_id', 'channel_id'])
     })
 
-    // Foreign keys a unique constraint pre kick_votes - ✅ PRIDANÉ
+    // Foreign keys a unique constraint pre kick_votes
     this.schema.alterTable('kick_votes', (table) => {
       table.foreign('channel_id').references('id').inTable('channels').onDelete('CASCADE')
       table.foreign('voter_user_id').references('id').inTable('users').onDelete('CASCADE')
