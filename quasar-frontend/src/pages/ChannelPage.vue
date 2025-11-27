@@ -206,7 +206,7 @@ async function loadInitialMessages() {
     hasMore.value = batch.length === limit
     scrollToBottomCb()
   } catch (e) {
-    //console.error('loadInitialMessages failed', e)
+    console.error('loadInitialMessages failed', e)
   }
 }
 
@@ -230,7 +230,7 @@ async function loadOlderMessages() {
     hasMore.value = batch.length === limit
     messages.value.unshift(...batch)
   } catch (e) {
-    //console.error('loadOlderMessages failed', e)
+    console.error('loadOlderMessages failed', e)
   } finally {
     loadingOlder.value = false
   }
@@ -339,7 +339,7 @@ watch(() => route.params.channelName, (nv) => {
 watch(
   () => channel.value?.id,
   async (id, oldId) => {
-    //console.log('Channel changed:', { id, oldId, channel: channel.value })
+    console.log('Channel changed:', { id, oldId, channel: channel.value })
 
     if (oldId) {
       socket.emit('leave:channel', { channelId: oldId })
