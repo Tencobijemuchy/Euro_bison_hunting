@@ -128,7 +128,7 @@
 
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted,onBeforeUnmount } from 'vue'
 import { useUserStore } from 'src/stores/user'
 import { useAppStore } from 'src/stores/app'
 import GlobalCommandBar from 'components/GlobalCommandBar.vue'
@@ -145,9 +145,12 @@ onMounted(async () => {
   app.init()
   if (user.isLogged) {
     await channels.loadChannels()
+    channels.initializeSocketListeners()
   }
 })
-
+onBeforeUnmount(() => {
+  channels.cleanupSocketListeners()
+})
 
 
 // odoslanie z globalneho command baru ide cez event bus do aktualnej stranky

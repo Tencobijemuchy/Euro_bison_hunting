@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { api } from 'src/boot/axios'
 import axios, { AxiosError } from 'axios'
 import { useUserStore } from './user'
-
+import { socket } from 'src/boot/socket' // Pridaj import socketu
 
 const API_URL = 'http://localhost:3333/api'
 
@@ -20,7 +20,6 @@ export type Channel = {
   topInvitedFor: Record<string, string>
   status: string
   messages?: ChatMessage[]
-
 }
 
 export type ChatAuthor = {
@@ -40,7 +39,6 @@ export type ChatMessage = {
   mentionedUserId?: number | string | null
 }
 
-
 // mapa draftov: channel -> nick -> text draftu (lokalne)
 type DraftMap = Record<string, Record<string, string>>
 
@@ -54,6 +52,7 @@ export const useChannelsStore = defineStore('channels', {
     typing: {} as TypingMap,
     loading: false,
     error: null as string | null,
+    socketInitialized: false, // Pridaj flag
   }),
 
   getters: {
@@ -90,6 +89,39 @@ export const useChannelsStore = defineStore('channels', {
   },
 
   actions: {
+    initializeSocketListeners() {
+      if (this.socketInitialized) return
+
+      //console.log('[Channels Store] Initializing socket listeners')
+
+      // Listener pre vytvorenie kanála
+      socket.on('channels:created', (channel: Channel) => {
+        //console.log('[Socket] Channel created:', channel.channelName)
+        this.addOrUpdateChannel(channel)
+      })
+
+      socket.on('channels:deleted', (data: { id: number; channelName: string }) => {
+        //console.log('[Socket] Channel deleted:', data.channelName)
+        this.channels = this.channels.filter((ch) => ch.id !== data.id)
+      })
+
+      // Listener pre invite
+      socket.on('channels:invited', (data: { channelName: string; invitee: string; createdAt: string }) => {
+        //console.log('[Socket] User invited:', data)
+        this.markInvited(data.channelName, data.invitee, data.createdAt)
+      })
+
+      this.socketInitialized = true
+    },
+
+    cleanupSocketListeners() {
+      //console.log('[Channels Store] Cleaning up socket listeners')
+      socket.off('channels:created')
+      socket.off('channels:deleted')
+      socket.off('channels:invited')
+      this.socketInitialized = false
+    },
+
     // Nacita kanaly z backendu
     async loadChannels() {
       this.loading = true
@@ -101,7 +133,7 @@ export const useChannelsStore = defineStore('channels', {
       } catch (err: unknown) {
         const error = err as { response?: { data?: { message?: string } } }
         this.error = error.response?.data?.message || 'Failed to load channels'
-        console.error('Error loading channels:', err)
+        //console.error('Error loading channels:', err)
       } finally {
         this.loading = false
       }
@@ -162,7 +194,7 @@ export const useChannelsStore = defineStore('channels', {
         }
 
         this.error = error.response?.data?.message || 'Failed to join channel'
-        console.error('Error joining channel:', err)
+        //console.error('Error joining channel:', err)
         throw err
       }
     },
@@ -204,9 +236,10 @@ export const useChannelsStore = defineStore('channels', {
           remaining?: number
         }
       } catch (error) {
-        const message = error instanceof AxiosError
-          ? error.response?.data?.message || 'Failed to kick'
-          : 'Failed to kick'
+        const message =
+          error instanceof AxiosError
+            ? error.response?.data?.message || 'Failed to kick'
+            : 'Failed to kick'
         throw new Error(message)
       }
     },
@@ -218,7 +251,7 @@ export const useChannelsStore = defineStore('channels', {
           data: {
             revokerNickname,
             targetNickname,
-          }
+          },
         })
 
         // Reload channels aby sa aktualizovali members a invitations
@@ -239,18 +272,19 @@ export const useChannelsStore = defineStore('channels', {
 
         const response = await axios.delete(`${API_URL}/channels/${channelId}/quit`, {
           headers: {
-            'X-User-Id': userStore.me.id.toString()
-          }
+            'X-User-Id': userStore.me.id.toString(),
+          },
         })
 
         //del kanal z local store
-        this.channels = this.channels.filter(ch => ch.id !== channelId)
+        this.channels = this.channels.filter((ch) => ch.id !== channelId)
 
         return response.data
       } catch (error) {
-        const message = error instanceof AxiosError
-          ? error.response?.data?.message || 'Failed to delete channel'
-          : 'Failed to delete channel'
+        const message =
+          error instanceof AxiosError
+            ? error.response?.data?.message || 'Failed to delete channel'
+            : 'Failed to delete channel'
         throw new Error(message)
       }
     },
@@ -264,7 +298,7 @@ export const useChannelsStore = defineStore('channels', {
     },
 
     addOrUpdateChannel(ch: Channel) {
-      const idx = this.channels.findIndex(c => c.channelName === ch.channelName || c.id === ch.id)
+      const idx = this.channels.findIndex((c) => c.channelName === ch.channelName || c.id === ch.id)
 
       if (idx !== -1) {
         this.channels[idx] = { ...this.channels[idx], ...ch }
@@ -274,7 +308,7 @@ export const useChannelsStore = defineStore('channels', {
     },
 
     markInvited(channelName: string, invitee: string, createdAt?: string) {
-      const c = this.channels.find(c => c.channelName === channelName)
+      const c = this.channels.find((c) => c.channelName === channelName)
       if (!c) return
 
       if (!c.topInvitedFor) c.topInvitedFor = {}
@@ -282,7 +316,7 @@ export const useChannelsStore = defineStore('channels', {
     },
 
     addIncomingMessage(msg: ChatMessage) {
-      const ch = this.channels.find(c => c.id === msg.channelId)
+      const ch = this.channels.find((c) => c.id === msg.channelId)
       if (!ch) return
 
       if (!ch.messages) ch.messages = []
@@ -292,6 +326,7 @@ export const useChannelsStore = defineStore('channels', {
         ch.messages.push(msg)
       }
     },
+
     removeMessage(channelId: number | string, messageId: number | string) {
       const channel = this.channels.find((ch) => Number(ch.id) === Number(channelId))
       if (!channel) return
@@ -300,16 +335,6 @@ export const useChannelsStore = defineStore('channels', {
       if (channel.messages) {
         channel.messages = channel.messages.filter((msg) => Number(msg.id) !== Number(messageId))
       }
-
-
-    }
-
-
-
-
-
-
-
-
+    },
   },
 })

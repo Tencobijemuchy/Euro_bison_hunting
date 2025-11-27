@@ -4,6 +4,7 @@ import Channel from '#models/channel'
 import User from '#models/user'
 import Database from '@adonisjs/lucid/services/db'
 import { io } from '#start/socket'
+import { DateTime } from 'luxon' // Pridaj tento import
 
 export default class MessagesController {
   // GET /api/channels/:id/messages?offset=0&limit=30
@@ -105,6 +106,8 @@ export default class MessagesController {
     const message = await Message.create(payload)
     await message.load('author')
 
+    await channel.merge({ lastActivityAt: DateTime.now() }).save()
+
     const messageData = {
       id: message.id,
       channelId: message.channelId,
@@ -115,29 +118,26 @@ export default class MessagesController {
       createdAt: message.createdAt.toISO(),
     }
 
-
     io.to(`channel:${channelId}`).emit('message:new', messageData)
-
 
     await this.sendNotifications(channel, message, user)
 
     return { success: true, message: messageData }
   }
 
-
   private async sendNotifications(channel: Channel, message: Message, author: User) {
     try {
-      // Načítaj všetkých členov kanála (okrem autora správy)
       await channel.load('members')
       const members = channel.members.filter((m) => m.id !== author.id)
 
       console.log(`Sending notifications for channel ${channel.id}, members:`, members.length)
 
       for (const member of members) {
-        // Skontroluj notifikačné nastavenia z DB
         const notificationMode = (member.notifications || 'all').toLowerCase()
 
-        console.log(`User ${member.id} notification mode: ${member.notifications} -> ${notificationMode}`)
+        console.log(
+          `User ${member.id} notification mode: ${member.notifications} -> ${notificationMode}`
+        )
 
         let shouldNotify = false
 
@@ -166,7 +166,6 @@ export default class MessagesController {
             `Sending notification to user ${member.id} for message in channel ${channel.channelName}`
           )
 
-          // Pošli notifikáciu do user roomky
           io.to(`user:${member.id}`).emit('notification:new', {
             type: 'message',
             messageId: message.id,

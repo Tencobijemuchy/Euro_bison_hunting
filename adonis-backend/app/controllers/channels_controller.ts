@@ -8,14 +8,52 @@ import { io } from '#start/socket'
 
 export default class ChannelsController {
   //GET /api/channels
-
   async index({ response }: HttpContext) {
+    // Inline cleanup na pozadi
+    const INACTIVE_MINUTES = 1 // 43200 = 30dni je to v minutach
+    const threshold = DateTime.now().minus({ minutes: INACTIVE_MINUTES })
+
+    // Cleanup na pozadi (fire and forget)
+    Channel.query()
+      .where('last_activity_at', '<', threshold.toSQL())
+      .orWhereNull('last_activity_at')
+      .then(async (inactiveChannels) => {
+        if (inactiveChannels.length > 0) {
+          console.log(`[Cleanup] Found ${inactiveChannels.length} inactive channels`)
+
+          for (const channel of inactiveChannels) {
+            console.log(`[Cleanup] Deleting channel: ${channel.channelName} (ID: ${channel.id})`)
+
+            // Ulož info pred zmazaním
+            const channelId = channel.id
+            const channelName = channel.channelName
+
+            await Database.from('channel_user').where('channel_id', channel.id).delete()
+            await Database.from('messages').where('channel_id', channel.id).delete()
+            await Database.from('invitations').where('channel_id', channel.id).delete()
+            await Database.from('typing_indicators').where('channel_id', channel.id).delete()
+            await Database.from('kick_votes').where('channel_id', channel.id).delete()
+            await channel.delete()
+
+
+            io.emit('channels:deleted', {
+              id: channelId,
+              channelName: channelName,
+            })
+          }
+
+          console.log(`[Cleanup] Deleted ${inactiveChannels.length} channels`)
+        }
+      })
+      .catch((err) => console.error('[Cleanup] Failed:', err))
+
+    // Normálne pokračuj s načítaním channels
     const channels = await Channel.query()
       .preload('owner')
       .preload('members')
       .orderBy('created_at', 'desc')
 
-    // Načítaj všetky pending invitations
+    // nacita pending inv
     const invitations = await Invitation.query().where('status', 'pending').preload('invitee')
 
     // Format pre frontend
@@ -51,7 +89,6 @@ export default class ChannelsController {
   }
 
   //GET /api/channels/:name
-
   async show({ params, request, response }: HttpContext) {
     const channel = await Channel.query()
       .whereRaw('LOWER(channel_name) = LOWER(?)', [params.name])
@@ -63,7 +100,7 @@ export default class ChannelsController {
       return response.notFound({ message: 'Channel not found' })
     }
 
-    //BAN CHECK: bannnutý user nesmie dostať members (/list)
+    //BAN CHECK: ban user nesmie dostať members (/list)
     const userIdHeader = request.header('X-User-Id')
     if (!userIdHeader) {
       return response.unauthorized({ message: 'Missing X-User-Id header' })
@@ -114,7 +151,6 @@ export default class ChannelsController {
   }
 
   //POST /api/channels/join
-
   async join({ request, response }: HttpContext) {
     const { nickname, channelName, isPrivate } = request.only([
       'nickname',
@@ -155,12 +191,12 @@ export default class ChannelsController {
         await channel.related('members').attach([user.id])
         await channel.load('members')
 
-        // Ak existuje pending invitation oznaci ju na accpeted
+        // Ak existuje pending invitation zmaz ju
         await Invitation.query()
           .where('channel_id', channel.id)
           .where('invitee_id', user.id)
           .where('status', 'pending')
-          .update({ status: 'accepted' })
+          .delete()
       }
 
       // load invitations
@@ -232,7 +268,6 @@ export default class ChannelsController {
       created: true,
       channel: payload,
     })
-
   }
 
   // POST /api/channels/:channelName/invite - inv usera
@@ -247,7 +282,7 @@ export default class ChannelsController {
       return response.badRequest({ message: 'Both inviter and invitee nicknames required' })
     }
 
-    // find channekl
+    // find channel
     const channel = await Channel.query()
       .whereRaw('LOWER(channel_name) = LOWER(?)', [channelName])
       .preload('owner')
@@ -289,20 +324,32 @@ export default class ChannelsController {
         return response.forbidden({ message: 'Only owner can unban a user' })
       }
 
+      // Odstráň ban úplne z tabuľky
       await Database.from('channel_user')
         .where({ channel_id: channel.id, user_id: invitee.id })
-        .update({
-          is_banned: false,
-          kick_count: 0,
-          updated_at: DateTime.utc().toFormat('yyyy-LL-dd HH:mm:ss'),
-        })
+        .delete()
 
       await Database.from('kick_votes')
         .where({ channel_id: channel.id, target_user_id: invitee.id })
         .delete()
 
+      // Vytvor novú invitation
+      await Invitation.create({
+        channelId: channel.id,
+        inviterId: inviter.id,
+        inviteeId: invitee.id,
+        status: 'pending',
+      })
+
+      // realtime pozvanka
+      io.to(`user:${invitee.id}`).emit('channels:invited', {
+        channelName: channel.channelName,
+        invitee: invitee.nickName,
+        createdAt: DateTime.utc().toISO(),
+      })
+
       return response.ok({
-        message: `${inviteeNickname} unbanned and re-invited to ${channelName}`,
+        message: `${inviteeNickname} unbanned and invited to ${channelName}`,
         channelName: channel.channelName,
         invitee: inviteeNickname,
         unbanned: true,
@@ -332,13 +379,12 @@ export default class ChannelsController {
       status: 'pending',
     })
 
-    // realtime pozvánka len pre invitee
+    // realtime pozvanka
     io.to(`user:${invitee.id}`).emit('channels:invited', {
       channelName: channel.channelName,
       invitee: invitee.nickName,
       createdAt: DateTime.utc().toISO(),
     })
-
 
     return response.ok({
       message: `${inviteeNickname} invited to ${channelName}`,
@@ -347,7 +393,7 @@ export default class ChannelsController {
     })
   }
 
-  // DELETE /api/channels/:channelName/revoke - odoberie člena alebo zruší invitation
+  // DELETE /api/channels/:channelName/revoke - odobere clena  + zrusi inv
   async revoke({ params, request, response }: HttpContext) {
     const { channelName } = params
     const { revokerNickname, targetNickname } = request.only(['revokerNickname', 'targetNickname'])
@@ -366,7 +412,7 @@ export default class ChannelsController {
       return response.notFound({ message: 'Channel not found' })
     }
 
-    // Nájdi revokera a target usera
+    // Najdi revokera a target usera
     const revoker = await User.findBy('nickName', revokerNickname)
     const target = await User.findBy('nickName', targetNickname)
 
@@ -488,7 +534,6 @@ export default class ChannelsController {
       })
     }
 
-
     // PRIVATE: len owner a hned permanent ban
     if (channel.isPrivate) {
       if (!isKickerOwner) {
@@ -531,7 +576,7 @@ export default class ChannelsController {
       })
     }
 
-    // PUBLIC: normal member vote (musí byť unikátne)
+    // PUBLIC: normal member vote
     const existingVote = await Database.from('kick_votes')
       .where({
         channel_id: channel.id,
@@ -560,13 +605,17 @@ export default class ChannelsController {
 
     await Database.from('channel_user')
       .where({ channel_id: channel.id, user_id: target.id })
-      .update({ kick_count: kickCount, updated_at: DateTime.utc().toFormat('yyyy-LL-dd HH:mm:ss'),
+      .update({
+        kick_count: kickCount,
+        updated_at: DateTime.utc().toFormat('yyyy-LL-dd HH:mm:ss'),
       })
 
     if (kickCount >= 3) {
       await Database.from('channel_user')
         .where({ channel_id: channel.id, user_id: target.id })
-        .update({ is_banned: true, updated_at: DateTime.utc().toFormat('yyyy-LL-dd HH:mm:ss'),
+        .update({
+          is_banned: true,
+          updated_at: DateTime.utc().toFormat('yyyy-LL-dd HH:mm:ss'),
         })
 
       notifyKick(true)
@@ -586,7 +635,7 @@ export default class ChannelsController {
     })
   }
 
-  // DELETE /api/channels/:id/quit - zmazanie kanála (len owner)
+  // DELETE /api/channels/:id/quit - zmazanie channel
   async quit({ params, request, response }: HttpContext) {
     try {
       const { id } = params
@@ -607,19 +656,25 @@ export default class ChannelsController {
         return response.forbidden({ message: 'Only channel owner can delete the channel' })
       }
 
+      const channelName = channel.channelName
+      const channelId = channel.id
+
       await Database.from('channel_user').where('channel_id', id).delete()
-
       await Database.from('messages').where('channel_id', id).delete()
-
       await Database.from('invitations').where('channel_id', id).delete()
-
       await Database.from('typing_indicators').where('channel_id', id).delete()
+      await Database.from('kick_votes').where('channel_id', id).delete()
 
       await channel.delete()
 
+      io.emit('channels:deleted', {
+        id: channelId,
+        channelName: channelName,
+      })
+
       return response.ok({
         message: 'Channel deleted successfully',
-        channelName: channel.channelName,
+        channelName: channelName,
       })
     } catch (error) {
       console.error('Quit channel error:', error)

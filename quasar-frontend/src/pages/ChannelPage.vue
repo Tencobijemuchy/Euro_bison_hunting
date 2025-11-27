@@ -98,7 +98,7 @@ import { useCommands } from 'src/composables/useCommands'
 import { onCommandSubmit } from 'src/utils/cmdBus'
 import axios from 'axios'
 import { socket } from 'src/boot/socket'
-
+import { useUserStore } from 'src/stores/user'
 // pomocny typ spravy pre zoznam
 type Msg = { id: string; author: string; text: string; ts: number; system?: boolean }
 
@@ -137,20 +137,50 @@ type BackendMessage = {
 type SocketBackendMessage = BackendMessage & {
   channelId?: number | string
   channel_id?: number | string
+  authorNickname?: string
+}
+
+type BackendMessageWithNickname = {
+  id: number | string
+  body: string
+  createdAt: string
+  authorNickname?: string
 }
 
 
-function mapBackendMsg(m: BackendMessage): Msg {
-  const nick =
-    m.author?.nickname ||
-    m.author?.nickName ||
-    m.author?.nick_name ||
-    m.author?.email ||
-    'unknown'
+function mapBackendMsg(m: BackendMessage | BackendMessageWithNickname): Msg {
+  // Ak máme priamo authorNickname (z POST response)
+  if ('authorNickname' in m && m.authorNickname) {
+    const nick = m.authorNickname
+    return {
+      id: String(m.id),
+      author: nick.startsWith('@') ? nick : `@${nick}`,
+      text: m.body,
+      ts: new Date(m.createdAt).getTime(),
+    }
+  }
 
+
+  if ('author' in m && m.author) {
+    const nick =
+      m.author.nickname ||
+      m.author.nickName ||
+      m.author.nick_name ||
+      m.author.email ||
+      'unknown'
+
+    return {
+      id: String(m.id),
+      author: nick.startsWith('@') ? nick : `@${nick}`,
+      text: m.body,
+      ts: new Date(m.createdAt).getTime(),
+    }
+  }
+
+  // Fallback
   return {
     id: String(m.id),
-    author: nick.startsWith('@') ? nick : `@${nick}`,
+    author: '@unknown',
     text: m.body,
     ts: new Date(m.createdAt).getTime(),
   }
@@ -176,7 +206,7 @@ async function loadInitialMessages() {
     hasMore.value = batch.length === limit
     scrollToBottomCb()
   } catch (e) {
-    console.error('loadInitialMessages failed', e)
+    //console.error('loadInitialMessages failed', e)
   }
 }
 
@@ -200,7 +230,7 @@ async function loadOlderMessages() {
     hasMore.value = batch.length === limit
     messages.value.unshift(...batch)
   } catch (e) {
-    console.error('loadOlderMessages failed', e)
+    //console.error('loadOlderMessages failed', e)
   } finally {
     loadingOlder.value = false
   }
@@ -309,7 +339,7 @@ watch(() => route.params.channelName, (nv) => {
 watch(
   () => channel.value?.id,
   async (id, oldId) => {
-    console.log('Channel changed:', { id, oldId, channel: channel.value })
+    //console.log('Channel changed:', { id, oldId, channel: channel.value })
 
     if (oldId) {
       socket.emit('leave:channel', { channelId: oldId })
@@ -354,7 +384,14 @@ async function pushMessageCb(msg: { author: string; text: string; ts?: number })
   } catch (e) {
     console.error(e)
 
-    messages.value.push({ id: uuid(), author: msg.author, text: msg.text, ts: msg.ts ?? Date.now() })
+    const userStore = useUserStore()
+    const nickname = userStore.me?.nickname || msg.author
+    messages.value.push({
+      id: uuid(),
+      author: nickname.startsWith('@') ? nickname : `@${nickname}`,
+      text: msg.text,
+      ts: msg.ts ?? Date.now()
+    })
     scrollToBottomCb()
   }
 }

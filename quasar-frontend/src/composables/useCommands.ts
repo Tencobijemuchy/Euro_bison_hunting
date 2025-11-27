@@ -168,7 +168,7 @@ export function useCommands(context: Ctx) {
           }
           //--------------------------------------------------------------------------------------------------KICK
 
-          case '/kick': {
+            case '/kick': {
             const rawTarget = args[0]?.trim()
             const targetNickname = rawTarget?.replace(/^@/, '')
 
@@ -301,9 +301,12 @@ export function useCommands(context: Ctx) {
 
 
     if (!channels.isMember(ch.channelName, me)) {
-      await channels.joinChannel(me, ch.channelName)
+      Notify.create({
+        type: 'warning',
+        message: 'You must join the channel first. Use /join or click join button.'
+      })
+      return false
     }
-
     try {
       await api.post(`/channels/${ch.id}/messages`,
         { content: txt },

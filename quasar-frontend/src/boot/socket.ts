@@ -173,7 +173,8 @@ export default boot(() => {
     const notification = new Notification(title, {
       body: snippet,
       tag: `channel-${payload.channelId}`,
-      icon: '/icons/icon-128x128.png', // ak máš ikonu
+      icon: '/src/assets/e_bison.png',
+      badge: '/src/assets/e_bison.png',
     })
 
     // Klik na notifikáciu - otvor channel

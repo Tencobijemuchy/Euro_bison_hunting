@@ -30,5 +30,5 @@ router.group(() => {
   // Messages
   router.get('/channels/:id/messages', [MessagesController, 'index'] as const)
   router.post('/channels/:id/messages', [MessagesController, 'store'] as const)
-
+  
 }).prefix('/api')
