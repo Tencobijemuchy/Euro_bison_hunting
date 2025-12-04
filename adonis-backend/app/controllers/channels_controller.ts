@@ -10,7 +10,7 @@ export default class ChannelsController {
   //GET /api/channels
   async index({ response }: HttpContext) {
     // Inline cleanup na pozadi
-    const INACTIVE_MINUTES = 1 // 43200 = 30dni je to v minutach
+    const INACTIVE_MINUTES = 1000 // 43200 = 30dni je to v minutach
     const threshold = DateTime.now().minus({ minutes: INACTIVE_MINUTES })
 
     // Cleanup na pozadi (fire and forget)

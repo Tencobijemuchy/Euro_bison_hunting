@@ -158,6 +158,7 @@ const onSubmit = async () => {
   height: 100%;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
+  padding-top: 0px;
   padding-bottom: calc(
     var(--footer-h, 68px) + var(--footer-lift, 0px) + env(safe-area-inset-bottom) + 24px
   );
