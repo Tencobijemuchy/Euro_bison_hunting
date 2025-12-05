@@ -39,8 +39,7 @@ export type ChatMessage = {
   mentionedUserId?: number | string | null
 }
 
-// mapa draftov: channel -> nick -> text draftu (lokalne)
-type DraftMap = Record<string, Record<string, string>>
+
 
 // mapa typing stavov: channel -> nick -> timestamp (lokalne)
 type TypingMap = Record<string, Record<string, number>>
@@ -48,11 +47,11 @@ type TypingMap = Record<string, Record<string, number>>
 export const useChannelsStore = defineStore('channels', {
   state: () => ({
     channels: [] as Channel[],
-    drafts: {} as DraftMap,
+    drafts: {} as Record<string, Record<string, string>>,
     typing: {} as TypingMap,
     loading: false,
     error: null as string | null,
-    socketInitialized: false, // Pridaj flag
+    socketInitialized: false,
   }),
 
   getters: {
@@ -83,9 +82,6 @@ export const useChannelsStore = defineStore('channels', {
       return c ? c.members.includes(nickname) : false
     },
 
-    draftOf: (s) => (channelName: string, nickname: string) => {
-      return s.drafts?.[channelName]?.[nickname] || ''
-    },
   },
 
   actions: {
@@ -111,6 +107,26 @@ export const useChannelsStore = defineStore('channels', {
         this.markInvited(data.channelName, data.invitee, data.createdAt)
       })
 
+      socket.on(
+        'draft:update',
+        (data: { channelName: string; nickname: string; text: string }) => {
+          this.setDraft(data.channelName, data.nickname, data.text)
+
+          let channelTyping = this.typing[data.channelName]
+          if (!channelTyping) {
+            channelTyping = {}
+            this.typing[data.channelName] = channelTyping
+          }
+
+          if (data.text.trim()) {
+            channelTyping[data.nickname] = Date.now()
+          } else {
+            delete channelTyping[data.nickname]
+          }
+
+        }
+      )
+
       this.socketInitialized = true
     },
 
@@ -119,6 +135,7 @@ export const useChannelsStore = defineStore('channels', {
       socket.off('channels:created')
       socket.off('channels:deleted')
       socket.off('channels:invited')
+      socket.off('draft:update')
       this.socketInitialized = false
     },
 
@@ -289,12 +306,43 @@ export const useChannelsStore = defineStore('channels', {
       }
     },
 
-    // Drafty su len lokalne (bez backendu)
     setDraft(channelName: string, nickname: string, text: string) {
-      if (!this.drafts[channelName]) this.drafts[channelName] = {}
+      if (!channelName || !nickname) return
+      if (!this.drafts[channelName]) {
+        this.drafts[channelName] = {}
+      }
       this.drafts[channelName][nickname] = text
-      if (!this.typing[channelName]) this.typing[channelName] = {}
-      this.typing[channelName][nickname] = Date.now()
+    },
+
+
+    broadcastDraft(channelName: string, text: string) {
+      const userStore = useUserStore()
+      const nickname =
+        userStore.me?.nickname ||
+        userStore.me?.email
+
+      if (!nickname) return
+
+      const ch = this.channels.find((c) => c.channelName === channelName)
+      if (!ch?.id) return
+
+      // uložíš si vlastný draft
+      this.setDraft(channelName, nickname, text)
+
+      // (voliteľne) update typing mapy
+      if (text.trim()) {
+        if (!this.typing[channelName]) this.typing[channelName] = {}
+        this.typing[channelName][nickname] = Date.now()
+      } else if (this.typing[channelName]) {
+        delete this.typing[channelName][nickname]
+      }
+
+      socket.emit('draft:update', {
+        channelId: ch.id,
+        channelName,
+        nickname,
+        text,
+      })
     },
 
     addOrUpdateChannel(ch: Channel) {
@@ -336,5 +384,10 @@ export const useChannelsStore = defineStore('channels', {
         channel.messages = channel.messages.filter((msg) => Number(msg.id) !== Number(messageId))
       }
     },
+
+    draftOf(channelName: string, nickname: string): string {
+      if (!channelName || !nickname) return ''
+      return this.drafts[channelName]?.[nickname] ?? ''
+    }
   },
 })

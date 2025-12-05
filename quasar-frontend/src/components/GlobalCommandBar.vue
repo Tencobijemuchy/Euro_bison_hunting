@@ -28,20 +28,48 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { useChannelsStore } from 'src/stores/channels'
+import { useRoute } from 'vue-router'
 
-/* stav pola - aktualny text prikazu/spravy */
-const cmd = ref('')
-const emit = defineEmits<{ (e: 'submit', text: string): void }>()
+const props = defineProps<{
+  modelValue?: string
+}>()
 
-/*odosle text a vycisti input field*/
+const emit = defineEmits<{
+  (e: 'update:modelValue', v: string): void
+  (e: 'submit', text: string): void
+}>()
+
+const cmd = ref(props.modelValue ?? '')
+
+const channels = useChannelsStore()
+const route = useRoute()
+const channelName = String(route.params.channelName || '')
+
+// synchronizácia modelValue -> cmd
+watch(() => props.modelValue, (v) => {
+  if (v !== undefined && v !== cmd.value) cmd.value = v
+})
+
+// pri zmene textu:
+watch(cmd, (v) => {
+  emit('update:modelValue', v)
+
+  if (channelName) {
+    channels.broadcastDraft(channelName, v)
+  }
+})
+
 function run() {
   const raw = cmd.value.trim()
   if (!raw) return
   emit('submit', raw)
   cmd.value = ''
+  channels.broadcastDraft(channelName, '')
 }
 </script>
+
 
 <style scoped>
 .command-bar {

@@ -25,6 +25,25 @@ export function initSocket(httpServer: any) {
     socket.on('leave:channel', ({ channelId }) => {
       if (channelId) socket.leave(`channel:${channelId}`)
     })
+
+    socket.on('draft:update', (payload) => {
+      const channelId = Number(payload?.channelId)
+      const channelName = String(payload?.channelName ?? '')
+      const nickname = String(payload?.nickname ?? '')
+      const text = String(payload?.text ?? '')
+
+      if (!channelId || !channelName || !nickname) {
+        return
+      }
+
+      // pošli všetkým ostatným v roomke channel:{id} okrem odosielateľa
+      socket.to(`channel:${channelId}`).emit('draft:update', {
+        channelId,
+        channelName,
+        nickname,
+        text,
+      })
+    })
   })
 
   return io

@@ -14,24 +14,24 @@
       <q-badge v-if="channel?.ownerNickname" color="primary" :label="`owner: ${channel.ownerNickname}`" />
       <q-space />
 
-      <div class="typing-bar">
+      <div class="typing-bar" v-if="typingOthers.length">
         <a
-
+          v-for="nick in typingOthers"
+          :key="nick"
           href="#"
           class="typing-chip typing-link"
-          @click.prevent="openPeek('@david')"
+          @click.prevent="openPeek(nick)"
         >
-          <span class="nick">{{'@david'}}</span>
+          <span class="nick">{{ nick }}</span>
           <span class="typing-verb">&nbsp;is typing</span>
-
-          <!-- BODKY MUSIA BYŤ VNÚTRI .dots -->
           <span class="dots" aria-hidden="true">
-          <span class="dot dot-1">.</span>
-          <span class="dot dot-2">.</span>
-          <span class="dot dot-3">.</span>
-        </span>
+      <span class="dot dot-1">.</span>
+      <span class="dot dot-2">.</span>
+      <span class="dot dot-3">.</span>
+    </span>
         </a>
       </div>
+
 
       <q-space />
       <q-btn dense flat size="lg" icon="group" label="Members" @click="openMembers" />
@@ -108,6 +108,18 @@ const router = useRouter()
 const channelName = String(route.params.channelName)
 const channels = useChannelsStore()
 //const { run: runCmd } = useCommands({ channelName })
+
+const userStore = useUserStore()
+
+const me = computed(() => {
+  return (
+    userStore.me?.nickname ||
+    userStore.me?.email ||
+    ''
+  )
+})
+
+const userStatus = computed(() => userStore.me?.status || 'online')
 
 const API = axios.create({
   baseURL: 'http://localhost:3333/api',
@@ -246,7 +258,32 @@ function goBack() {
 
 
 const channel = computed(() => channels.byName(channelName))
-//const typingOthers = computed(() => channels.typingList(channelName, me.value))
+const typingOthers = computed(() => {
+  const byChannel = channels.typing?.[channelName] || {}
+  return Object.keys(byChannel).filter((nick) => nick && nick !== me.value)
+})
+
+const memberNicknames = computed(() => {
+  const ch = channel.value
+  if (!ch) return []
+
+  const set = new Set<string>()
+
+  ch.members?.forEach((n) => {
+    if (!n) return
+    set.add(n.replace(/^@+/, ''))
+  })
+
+  if (ch.ownerNickname) {
+    set.add(ch.ownerNickname.replace(/^@+/, ''))
+  }
+
+  return Array.from(set)
+})
+
+function escapeRegex(str: string) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
 // generator unikatneho id
 function uuid() {
@@ -276,8 +313,22 @@ async function onScroll() {
 
 //zabezpeci ze sa text zobrazi
 function renderText(t: string) {
-  const esc = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return esc.replace(/@([A-Za-z0-9_-]+)/g, '<span class="text-primary">@$1</span>')
+  const esc = t
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+  const names = memberNicknames.value
+  if (!names.length) {
+    return esc
+  }
+
+  const pattern = names.map(escapeRegex).join('|')
+  const regex = new RegExp(`@(?:${pattern})(?![\\w-])`, 'g')
+
+  return esc.replace(regex, (match) => {
+    return `<span class="text-primary">${match}</span>`
+  })
 }
 
 // formatovanie timestampu na hh:mm pre spravy
@@ -298,6 +349,14 @@ function openMembers() {
 const peekOpen = ref(false)
 const peekNick = ref<string>('')
 const peekText = ref('')
+watch(
+  () => channels.draftOf(channelName, peekNick.value || ''),
+  (val) => {
+    if (peekOpen.value && peekNick.value) {
+      peekText.value = val
+    }
+  }
+)
 
 // otvorenie draft peek pre konkretneho clena
 function openPeek (nick: string) {
@@ -317,8 +376,6 @@ onMounted(() => {
   offBus = onCommandSubmit((text) => {
     void runCmd(text)
   })
-
-  channels.setDraft(channelName, '@david', 'text text text text text')
 })
 
 onBeforeUnmount(() => {
@@ -357,6 +414,16 @@ watch(
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => userStatus.value,
+  async (now, prev) => {
+    if (now === 'online' && prev === 'offline') {
+      console.log('Status changed offline -> online, reloading messages')
+      await loadInitialMessages()
+    }
+  }
 )
 
 
@@ -405,6 +472,9 @@ function scrollToBottomCb() {
 }
 
 function handleSocketMessage(bm: SocketBackendMessage) {
+  if (userStatus.value === 'offline') {
+    return
+  }
   const chId = String(channel.value?.id ?? '')
   const msgChId = String(bm.channelId ?? bm.channel_id ?? '')
 

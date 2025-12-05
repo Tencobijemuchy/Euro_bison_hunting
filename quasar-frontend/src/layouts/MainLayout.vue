@@ -119,6 +119,7 @@
           <GlobalCommandBar
             v-model="command"
             @submit="onGlobalSubmit"
+            @input-change="onInputChange"
           />
         </q-form>
       </div>
@@ -134,11 +135,13 @@ import { useAppStore } from 'src/stores/app'
 import GlobalCommandBar from 'components/GlobalCommandBar.vue'
 import { emitCommandSubmit } from 'src/utils/cmdBus'
 import { useChannelsStore } from 'src/stores/channels'
+import { useRoute } from 'vue-router'
 
 const app = useAppStore()
 const user = useUserStore()
 const command = ref('')
 const channels = useChannelsStore()
+const route = useRoute()
 
 onMounted(async () => {
   user.loadSession()
@@ -159,6 +162,14 @@ function onGlobalSubmit(text: string) {
   if (!payload) return
   emitCommandSubmit(payload)
   command.value = ''
+}
+
+function onInputChange(text: string) {
+  if (route.name !== 'channel') return
+  const chName = String(route.params.channelName ?? '')
+  if (!chName) return
+
+  channels.broadcastDraft(chName, text)
 }
 </script>
 

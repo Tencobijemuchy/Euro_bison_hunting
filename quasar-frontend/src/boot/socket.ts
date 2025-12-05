@@ -109,7 +109,6 @@ export default boot(() => {
   socket.on('message:deleted', (data: { messageId: number; channelId: number }) => {
     console.log('Message deleted:', data)
     // channels.removeMessage(data.channelId, data.messageId)
-    // TODO: Pridaj removeMessage metódu do channels store
   })
 
   // --- NOTIFIKÁCIE (riadené backendom na základe DB nastavení) ---
@@ -140,33 +139,46 @@ export default boot(() => {
   socket.on('notification:new', async (payload: NotificationPayload) => {
     console.log('Notification received from backend:', payload)
 
-    // Backend už skontroloval DB nastavenia
-    // Frontend len skontroluje či je appka visible a user DND status
 
     const me = user.me
     if (!me) return
 
-    // Ak je appka visible (user pozerá na ňu), nezobrazuj desktop notifikáciu
+    const rawMode = (me.notifications ?? 'all').toString().toLowerCase().trim()
+    const isOff = rawMode === 'off'
+    const isAll = rawMode === 'all'
+    const isMentionsOnly = !isOff && !isAll
+
+    if (isOff) {
+      console.log('Notif mode = OFF')
+      return
+    }
+
+    if (isMentionsOnly) {
+      const mentionedId = Number(payload.mentionedUserId)
+      const myId = Number(me.id)
+      console.log('Notif mode = MENTIONS_ONLY', { mentionedId, myId })
+      if (!mentionedId || mentionedId !== myId) {
+        return
+      }
+    }
+
     if (isVisible()) {
       console.log('App is visible, skipping desktop notification')
       return
     }
 
-    // Rešpektuj DND status (Do Not Disturb)
     if (me.status === 'dnd') {
       console.log('User is in DND mode, skipping notification')
       return
     }
 
-    // Skontroluj permission
     const ok = await ensureNotificationPermission()
     if (!ok) {
       console.log('Notification permission not granted')
       return
     }
 
-    // Zobraž desktop notifikáciu
-    const text = payload.body.trim()
+    const text = (payload.body || '').trim()
     const snippet = text.length > 140 ? text.slice(0, 140) + '…' : text
     const title = `#${payload.channelName} — ${payload.authorNickname}`
 
@@ -177,19 +189,16 @@ export default boot(() => {
       badge: '/src/assets/e_bison.png',
     })
 
-    // Klik na notifikáciu - otvor channel
     notification.onclick = () => {
       window.focus()
       notification.close()
 
-      // Presmeruj na channel
       const channel = channels.channels.find((c) => Number(c.id) === Number(payload.channelId))
       if (channel) {
         void router.push(`/channels/${channel.channelName}`)
       }
     }
 
-    // Auto-close po 5 sekundách
     setTimeout(() => {
       notification.close()
     }, 5000)
