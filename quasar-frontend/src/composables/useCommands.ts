@@ -286,6 +286,13 @@ export function useCommands(context: Ctx) {
           }
           //--------------------------------------------------------------------------------------------------LIST
           case '/list': {
+            if (!channels.isMember(ch.channelName, me)) {
+              Notify.create({
+                type: 'warning',
+                message: 'You must be a member to see the member list. Use /join first.'
+              })
+              break
+            }
             Notify.create({ type: 'info', message: `members: ${ch.members.join(', ')}` })
             break
           }

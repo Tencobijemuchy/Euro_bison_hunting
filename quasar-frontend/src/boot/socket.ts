@@ -103,6 +103,7 @@ export default boot(() => {
   })
 
   socket.on('message:new', (msg) => {
+
     channels.addIncomingMessage(msg)
   })
 
